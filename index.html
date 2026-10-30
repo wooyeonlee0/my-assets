@@ -298,8 +298,10 @@
             <div class="flex items-center space-x-1.5">
               <span class="text-[11px] text-slate-400 font-medium shrink-0">모델:</span>
               <select id="chatModelSelect" onchange="onModelChanged()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono">
-                <option value="gemini-3.8-flash" selected>gemini-3.8-flash ⚡ (기본)</option>
+                <option value="gemini-2.5-flash" selected>gemini-2.5-flash 🛡️ (추천·트래픽 안정)</option>
+                <option value="gemini-3.8-flash">gemini-3.8-flash ⚡ (차세대)</option>
                 <option value="gemini-4-argon">gemini-4-argon 🧠 (심층)</option>
+                <option value="gemini-2.0-flash">gemini-2.0-flash 🚀 (고속)</option>
               </select>
             </div>
 
@@ -734,12 +736,21 @@
           }
 
           lastErr = data.error?.message || `HTTP ${res.status}`;
-          if (res.status === 404 || lastErr.includes('not found') || lastErr.includes('not supported')) {
+          // 404 미지원 뿐만 아니라 503/429 일시적 트래픽 폭주(high demand) 시 다음 모델로 자동 우회
+          const isBusyOrNotFound = res.status === 404 || res.status === 503 || res.status === 429 ||
+            lastErr.includes('not found') || lastErr.includes('not supported') ||
+            lastErr.includes('high demand') || lastErr.includes('Spikes in demand');
+
+          if (isBusyOrNotFound) {
+            console.warn(`[Gemini API] 모델 ${m} 일시 사용 불가 (${lastErr}). 다음 모델로 자동 우회합니다...`);
             continue;
           }
           throw new Error(lastErr);
         } catch (e) {
-          if (e.message && (e.message.includes('not found') || e.message.includes('not supported'))) continue;
+          const errMsg = e.message || '';
+          if (errMsg.includes('not found') || errMsg.includes('not supported') || errMsg.includes('high demand') || errMsg.includes('Spikes in demand')) {
+            continue;
+          }
           throw e;
         }
       }
