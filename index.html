@@ -63,10 +63,10 @@
           <h1 class="text-base font-bold text-slate-100 flex items-center space-x-2">
             <span>VALIANT ASSETS</span>
             <span id="syncStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              로컬 모드
+              클라우드 연동됨
             </span>
           </h1>
-          <p class="text-xs text-slate-400">서버리스 클라이언트 자산관리</p>
+          <p class="text-xs text-slate-400">통합 포트폴리오 관제탑</p>
         </div>
       </div>
 
@@ -108,11 +108,11 @@
       </div>
 
       <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-xs font-medium text-slate-400">데이터 저장소</span>
+        <span class="text-xs font-medium text-slate-400">월 예상 배당금 (추정)</span>
         <div class="my-1">
-          <div id="kpiRepoName" class="text-base md:text-lg font-bold text-slate-200 truncate">GitHub Private</div>
+          <div class="text-xl md:text-2xl font-black text-amber-400 tracking-tight">₩350,000</div>
         </div>
-        <span class="text-[11px] text-emerald-400">서버리스 0원 아키텍처</span>
+        <span class="text-[11px] text-slate-400">연간 약 420만원 (시가배당률 0.6%)</span>
       </div>
     </div>
 
@@ -638,12 +638,10 @@
       const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
       const token = localStorage.getItem('valiant_gh_token');
       const badge = document.getElementById('syncStatusBadge');
-      const repoLabel = document.getElementById('kpiRepoName');
 
-      repoLabel.innerText = repo;
       if (token) {
         badge.innerText = "GitHub 동기화 활성";
-        badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20";
+        badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
       } else {
         badge.innerText = "저장소 연결됨 (토큰 입력 시 커밋 활성화)";
         badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20";
