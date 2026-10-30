@@ -292,26 +292,27 @@
               <p class="text-[11px] text-slate-400">내 7.1억 포트폴리오를 기반으로 실시간 전략 상담</p>
             </div>
           </div>
-          <!-- Dynamic Model Selector -->
-          <div class="flex items-center space-x-2">
-            <span class="text-[11px] text-slate-400 font-medium shrink-0">모델:</span>
-            <select id="chatModelSelect" onchange="onModelChanged()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono">
-              <optgroup label="🔥 차세대 (3.8 / 4.x)">
-                <option value="gemini-3.8-flash" selected>gemini-3.8-flash ⚡ (추천)</option>
-                <option value="gemini-3.8-flash-lite">gemini-3.8-flash-lite 🚀</option>
-                <option value="gemini-4-argon">gemini-4-argon 🧠 (플래그십)</option>
-                <option value="gemini-flash-latest">gemini-flash-latest ⚡</option>
-              </optgroup>
-              <optgroup label="⚡ 스테이블 (2.x)">
-                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-              </optgroup>
-              <option value="custom">✏️ 모델명 직접 입력...</option>
-            </select>
-            <button onclick="refreshAvailableModels()" title="Google API에서 실시간 활성 모델 목록 가져오기" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700">
-              🔄
-            </button>
+          <!-- Model & Reasoning Effort Selectors -->
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Model Select (딱 2개!) -->
+            <div class="flex items-center space-x-1.5">
+              <span class="text-[11px] text-slate-400 font-medium shrink-0">모델:</span>
+              <select id="chatModelSelect" onchange="onModelChanged()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono">
+                <option value="gemini-3.8-flash" selected>gemini-3.8-flash ⚡ (기본)</option>
+                <option value="gemini-4-argon">gemini-4-argon 🧠 (심층)</option>
+              </select>
+            </div>
+
+            <!-- Reasoning Effort Select -->
+            <div class="flex items-center space-x-1.5">
+              <span class="text-[11px] text-slate-400 font-medium shrink-0">Reasoning:</span>
+              <select id="reasoningEffortSelect" onchange="onReasoningChanged()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium">
+                <option value="0">⚡ 꺼짐 (Fast)</option>
+                <option value="1024">🌱 Low (1K)</option>
+                <option value="2048" selected>⚖️ Medium (2K)</option>
+                <option value="8192">🧠 High (8K)</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -450,6 +451,7 @@
     // -------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
       loadSettings();
+      loadModelAndReasoningSettings();
       renderKPIs();
       renderHoldingsTable();
       renderHistoryTable();
@@ -647,105 +649,90 @@
     }
 
     // -------------------------------------------------------------
-    // Dynamic Model Management & Gemini API Connector
+    // Model & Reasoning Effort Controls (3.8 Flash & 4 Argon)
     // -------------------------------------------------------------
     function onModelChanged() {
       const select = document.getElementById('chatModelSelect');
-      if (!select) return;
-
-      if (select.value === 'custom') {
-        const customModel = prompt('사용할 Gemini 모델명을 직접 입력하세요 (예: gemini-3.8-flash, gemini-4-argon 등):');
-        if (customModel && customModel.trim()) {
-          const trimmed = customModel.trim();
-          let opt = [...select.options].find(o => o.value === trimmed);
-          if (!opt) {
-            opt = document.createElement('option');
-            opt.value = trimmed;
-            opt.innerText = `${trimmed} (직접 입력)`;
-            select.insertBefore(opt, select.firstChild);
-          }
-          select.value = trimmed;
-          localStorage.setItem('valiant_selected_model', trimmed);
-        } else {
-          select.value = localStorage.getItem('valiant_selected_model') || 'gemini-3.8-flash';
-        }
-      } else {
+      if (select) {
         localStorage.setItem('valiant_selected_model', select.value);
       }
     }
 
-    async function refreshAvailableModels() {
-      const geminiKey = localStorage.getItem('valiant_gemini_key');
-      const select = document.getElementById('chatModelSelect');
-      if (!geminiKey || !select) return;
+    function onReasoningChanged() {
+      const select = document.getElementById('reasoningEffortSelect');
+      if (select) {
+        localStorage.setItem('valiant_reasoning_effort', select.value);
+      }
+    }
 
-      try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey.trim()}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const contentModels = (data.models || []).filter(m => 
-          m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')
-        );
+    function loadModelAndReasoningSettings() {
+      const modelSelect = document.getElementById('chatModelSelect');
+      const reasoningSelect = document.getElementById('reasoningEffortSelect');
+      
+      const savedModel = localStorage.getItem('valiant_selected_model') || 'gemini-3.8-flash';
+      if (modelSelect && [...modelSelect.options].some(o => o.value === savedModel)) {
+        modelSelect.value = savedModel;
+      }
 
-        if (contentModels.length === 0) return;
-
-        const saved = localStorage.getItem('valiant_selected_model') || select.value;
-        select.innerHTML = '';
-        
-        // Custom input option at top
-        const customOpt = document.createElement('option');
-        customOpt.value = 'custom';
-        customOpt.innerText = '✏️ 모델명 직접 입력...';
-
-        contentModels.forEach(m => {
-          const modelId = m.name.replace('models/', '');
-          const opt = document.createElement('option');
-          opt.value = modelId;
-          let badge = '';
-          if (modelId.includes('4-') || modelId.includes('argon')) badge = ' 🧠';
-          else if (modelId.includes('3.8') || modelId.includes('flash')) badge = ' ⚡';
-          else if (modelId.includes('pro')) badge = ' 🎯';
-          opt.innerText = `${modelId}${badge}`;
-          select.appendChild(opt);
-        });
-
-        select.appendChild(customOpt);
-
-        if ([...select.options].some(o => o.value === saved)) {
-          select.value = saved;
-        }
-      } catch (e) {
-        console.warn('Model fetch error:', e);
+      const savedReasoning = localStorage.getItem('valiant_reasoning_effort') || '2048';
+      if (reasoningSelect && [...reasoningSelect.options].some(o => o.value === savedReasoning)) {
+        reasoningSelect.value = savedReasoning;
       }
     }
 
     async function callGeminiAPI(apiKey, payload) {
-      const select = document.getElementById('chatModelSelect');
-      const userSelected = (select && select.value !== 'custom' ? select.value : null) || localStorage.getItem('valiant_selected_model');
+      const modelSelect = document.getElementById('chatModelSelect');
+      const userSelected = (modelSelect ? modelSelect.value : null) || localStorage.getItem('valiant_selected_model') || 'gemini-3.8-flash';
       
-      const candidateModels = [];
-      if (userSelected) candidateModels.push(userSelected);
-      ['gemini-3.8-flash', 'gemini-3.8-flash-lite', 'gemini-4-argon', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'].forEach(m => {
+      // 사용자 지정 2개 모델 우선: 3.8 flash & 4 argon (이후 fallback)
+      const candidateModels = [userSelected];
+      const otherModel = userSelected === 'gemini-3.8-flash' ? 'gemini-4-argon' : 'gemini-3.8-flash';
+      candidateModels.push(otherModel);
+      ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'].forEach(m => {
         if (!candidateModels.includes(m)) candidateModels.push(m);
       });
 
+      // Reasoning Effort (Thinking Budget) 반영
+      const reasoningVal = parseInt(localStorage.getItem('valiant_reasoning_effort') || (document.getElementById('reasoningEffortSelect')?.value || '2048'));
+
       let lastErr = null;
       for (const m of candidateModels) {
+        const reqPayload = JSON.parse(JSON.stringify(payload));
+        if (reasoningVal >= 0) {
+          if (!reqPayload.generationConfig) reqPayload.generationConfig = {};
+          reqPayload.generationConfig.thinkingConfig = {
+            thinkingBudget: reasoningVal
+          };
+        }
+
         try {
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey.trim()}`;
-          const res = await fetch(url, {
+          let res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(reqPayload)
           });
-          const data = await res.json();
+          let data = await res.json();
+
+          // 모델이 thinkingConfig를 지원하지 않을 경우 자동 제거 후 재시도
+          if (!res.ok && data.error?.message && (data.error.message.includes('thinkingConfig') || data.error.message.includes('thinking_budget'))) {
+            delete reqPayload.generationConfig.thinkingConfig;
+            res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(reqPayload)
+            });
+            data = await res.json();
+          }
+
           if (res.ok) {
-            if (select && select.value !== m && [...select.options].some(o => o.value === m)) {
-              select.value = m;
+            if (modelSelect && modelSelect.value !== m && [...modelSelect.options].some(o => o.value === m)) {
+              modelSelect.value = m;
               localStorage.setItem('valiant_selected_model', m);
             }
             return { model: m, data: data };
           }
+
           lastErr = data.error?.message || `HTTP ${res.status}`;
           if (res.status === 404 || lastErr.includes('not found') || lastErr.includes('not supported')) {
             continue;
