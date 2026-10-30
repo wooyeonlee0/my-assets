@@ -16,8 +16,9 @@
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- ApexCharts CDN -->
+  <!-- ApexCharts CDN & Marked Markdown Parser -->
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <script>
     tailwind.config = {
@@ -280,14 +281,29 @@
 
     <!-- TAB 4: AI 자산비서 (Gemini 실시간 포트폴리오 상담) -->
     <div id="tabContent-aiAssistant" class="tab-content hidden space-y-6">
-      <div class="card-glass rounded-2xl p-5 flex flex-col h-[520px]">
-        <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
-          <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
-            🤖
+      <div class="card-glass rounded-2xl p-5 flex flex-col h-[540px]">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
+              🤖
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-slate-100">AI 포트폴리오 자산비서</h2>
+              <p class="text-[11px] text-slate-400">내 7.1억 포트폴리오를 기반으로 실시간 전략 상담</p>
+            </div>
           </div>
-          <div>
-            <h2 class="text-sm font-bold text-slate-100">Gemini 1.5 Flash 자산비서</h2>
-            <p class="text-[11px] text-slate-400">내 7.1억 포트폴리오를 기억하고 즉시 맞춤 전략 조언을 제공합니다.</p>
+          <!-- Dynamic Model Selector -->
+          <div class="flex items-center space-x-2">
+            <span class="text-[11px] text-slate-400 font-medium shrink-0">모델:</span>
+            <select id="chatModelSelect" onchange="onModelChanged()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono">
+              <option value="gemini-2.5-flash">gemini-2.5-flash ⚡</option>
+              <option value="gemini-2.0-flash">gemini-2.0-flash ⚡</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro 🧠</option>
+              <option value="gemini-flash-latest">gemini-flash-latest ⚡</option>
+            </select>
+            <button onclick="refreshAvailableModels()" title="사용 가능한 모델 목록 새로고침" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700">
+              🔄
+            </button>
           </div>
         </div>
 
@@ -622,6 +638,93 @@
       document.getElementById('settingsModal').classList.remove('hidden');
     }
 
+    // -------------------------------------------------------------
+    // Dynamic Model Management & Gemini API Connector
+    // -------------------------------------------------------------
+    function onModelChanged() {
+      const select = document.getElementById('chatModelSelect');
+      if (select) {
+        localStorage.setItem('valiant_selected_model', select.value);
+      }
+    }
+
+    async function refreshAvailableModels() {
+      const geminiKey = localStorage.getItem('valiant_gemini_key');
+      const select = document.getElementById('chatModelSelect');
+      if (!geminiKey || !select) return;
+
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey.trim()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const contentModels = (data.models || []).filter(m => 
+          m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')
+        );
+
+        if (contentModels.length === 0) return;
+
+        const saved = localStorage.getItem('valiant_selected_model') || select.value;
+        select.innerHTML = '';
+        
+        contentModels.forEach(m => {
+          const modelId = m.name.replace('models/', '');
+          const opt = document.createElement('option');
+          opt.value = modelId;
+          let badge = '';
+          if (modelId.includes('flash')) badge = ' ⚡';
+          else if (modelId.includes('pro')) badge = ' 🧠';
+          opt.innerText = `${modelId}${badge}`;
+          select.appendChild(opt);
+        });
+
+        if ([...select.options].some(o => o.value === saved)) {
+          select.value = saved;
+        }
+      } catch (e) {
+        console.warn('Model fetch error:', e);
+      }
+    }
+
+    async function callGeminiAPI(apiKey, payload) {
+      const select = document.getElementById('chatModelSelect');
+      const userSelected = (select ? select.value : null) || localStorage.getItem('valiant_selected_model');
+      
+      const candidateModels = [];
+      if (userSelected) candidateModels.push(userSelected);
+      ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-flash-latest'].forEach(m => {
+        if (!candidateModels.includes(m)) candidateModels.push(m);
+      });
+
+      let lastErr = null;
+      for (const m of candidateModels) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey.trim()}`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (res.ok) {
+            if (select && select.value !== m && [...select.options].some(o => o.value === m)) {
+              select.value = m;
+              localStorage.setItem('valiant_selected_model', m);
+            }
+            return { model: m, data: data };
+          }
+          lastErr = data.error?.message || `HTTP ${res.status}`;
+          if (res.status === 404 || lastErr.includes('not found') || lastErr.includes('not supported')) {
+            continue;
+          }
+          throw new Error(lastErr);
+        } catch (e) {
+          if (e.message && (e.message.includes('not found') || e.message.includes('not supported'))) continue;
+          throw e;
+        }
+      }
+      throw new Error(lastErr || "사용 가능한 Gemini 모델을 찾을 수 없습니다.");
+    }
+
     async function testGeminiKey() {
       const inputKey = document.getElementById('settingGeminiKey').value.trim();
       const statusEl = document.getElementById('geminiTestStatus');
@@ -633,30 +736,18 @@
         return;
       }
 
-      statusEl.innerText = "⏳ Gemini 1.5 Flash 연결 테스트 중...";
+      statusEl.innerText = "⏳ Gemini 사용 가능 모델 확인 및 연결 테스트 중...";
       statusEl.className = "text-[11px] mt-1.5 text-sky-400 font-medium";
 
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${inputKey}`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "Hello" }] }]
-          })
+        const result = await callGeminiAPI(inputKey, {
+          contents: [{ parts: [{ text: "ping" }] }]
         });
-
-        const data = await res.json();
-        if (!res.ok) {
-          const errMsg = data.error?.message || `HTTP ${res.status}`;
-          statusEl.innerText = `❌ 연결 실패: ${errMsg}`;
-          statusEl.className = "text-[11px] mt-1.5 text-rose-400 font-medium";
-        } else {
-          statusEl.innerText = "✅ 연결 성공! Gemini 1.5 Flash가 정상 작동합니다.";
-          statusEl.className = "text-[11px] mt-1.5 text-emerald-400 font-bold";
-        }
+        statusEl.innerText = `✅ 연결 성공! (${result.model} 모델 정상 작동)`;
+        statusEl.className = "text-[11px] mt-1.5 text-emerald-400 font-bold";
+        await refreshAvailableModels();
       } catch (err) {
-        statusEl.innerText = `❌ 통신 오류: ${err.message}`;
+        statusEl.innerText = `❌ 연결 실패: ${err.message}`;
         statusEl.className = "text-[11px] mt-1.5 text-rose-400 font-medium";
       }
     }
@@ -675,6 +766,7 @@
       localStorage.setItem('valiant_gemini_key', gemini);
 
       loadSettings();
+      refreshAvailableModels();
       closeSettingsModal();
       alert('설정이 안전하게 브라우저 로컬 저장소에 저장되었습니다!');
     }
@@ -691,6 +783,7 @@
         badge.innerText = "저장소 연결됨 (토큰 입력 시 커밋 활성화)";
         badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20";
       }
+      refreshAvailableModels();
     }
 
     // -------------------------------------------------------------
@@ -735,7 +828,6 @@
   ]
 }`;
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
         const payload = {
           contents: [{
             parts: [
@@ -745,16 +837,8 @@
           }]
         };
 
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error?.message || `HTTP ${res.status} 오류`);
-        }
+        const result = await callGeminiAPI(geminiKey, payload);
+        const data = result.data;
 
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
           throw new Error("Gemini가 이미지를 분석하지 못했습니다. 다른 이미지로 시도해 주세요.");
@@ -942,23 +1026,14 @@
 주요 종목 비중: ${topStocks}
 사용자의 질문에 대해 7.1억 자산의 비중, 거시경제 환경, 세제 혜택(ISA/연금) 관점을 고려하여 구체적이고 전문적이며 친절하게 한국어로 조언해 주세요.`;
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
         const payload = {
           contents: [{
             parts: [{ text: `${sysContext}\n\n사용자 질문: ${text}` }]
           }]
         };
 
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error?.message || `HTTP ${res.status} 오류`);
-        }
+        const result = await callGeminiAPI(geminiKey, payload);
+        const data = result.data;
 
         if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
           throw new Error("Gemini가 빈 응답을 반환했습니다.");
@@ -982,9 +1057,16 @@
       const chatBox = document.getElementById('chatMessages');
       const botDiv = document.createElement('div');
       botDiv.className = "flex items-start space-x-2.5";
+      
+      const parsedHtml = (window.marked && typeof window.marked.parse === 'function') 
+        ? window.marked.parse(msg) 
+        : msg;
+
       botDiv.innerHTML = `
-        <div class="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-bold shrink-0">AI</div>
-        <div class="bg-slate-800/90 border border-slate-700/60 p-3 rounded-2xl rounded-tl-none max-w-[85%] text-slate-200 leading-relaxed whitespace-pre-wrap">${msg}</div>
+        <div class="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-bold shrink-0 text-xs">AI</div>
+        <div class="bg-slate-800/90 border border-slate-700/60 p-3.5 rounded-2xl rounded-tl-none max-w-[88%] text-slate-200 leading-relaxed text-xs">
+          ${parsedHtml}
+        </div>
       `;
       chatBox.appendChild(botDiv);
       chatBox.scrollTop = chatBox.scrollHeight;
