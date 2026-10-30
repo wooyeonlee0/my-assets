@@ -323,9 +323,9 @@
 
       <div class="space-y-4 text-xs">
         <div>
-          <label class="block font-semibold text-slate-300 mb-1">GitHub Private Repo 경로</label>
-          <input type="text" id="settingGithubRepo" placeholder="예: wylee/valiant-portfolio" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
-          <p class="text-[10px] text-slate-400 mt-1">자산 JSON 파일이 저장되는 본인의 Private GitHub 저장소</p>
+          <label class="block font-semibold text-slate-300 mb-1">GitHub 저장소 경로 (기본 설정됨)</label>
+          <input type="text" id="settingGithubRepo" value="wooyeonlee0/my-assets" placeholder="wooyeonlee0/my-assets" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
+          <p class="text-[10px] text-slate-400 mt-1">자산 데이터가 커밋되는 본인의 GitHub 저장소 (필요 시 변경 가능)</p>
         </div>
 
         <div>
@@ -604,11 +604,13 @@
       if (tabId === 'history' && historyChartInstance) historyChartInstance.render();
     }
 
+    const DEFAULT_REPO = "wooyeonlee0/my-assets";
+
     // -------------------------------------------------------------
     // 5. Settings Management (LocalStorage)
     // -------------------------------------------------------------
     function openSettingsModal() {
-      document.getElementById('settingGithubRepo').value = localStorage.getItem('valiant_gh_repo') || '';
+      document.getElementById('settingGithubRepo').value = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
       document.getElementById('settingGithubToken').value = localStorage.getItem('valiant_gh_token') || '';
       document.getElementById('settingGeminiKey').value = localStorage.getItem('valiant_gemini_key') || '';
       document.getElementById('settingsModal').classList.remove('hidden');
@@ -619,7 +621,7 @@
     }
 
     function saveSettings() {
-      const repo = document.getElementById('settingGithubRepo').value.trim();
+      const repo = document.getElementById('settingGithubRepo').value.trim() || DEFAULT_REPO;
       const token = document.getElementById('settingGithubToken').value.trim();
       const gemini = document.getElementById('settingGeminiKey').value.trim();
 
@@ -633,19 +635,18 @@
     }
 
     function loadSettings() {
-      const repo = localStorage.getItem('valiant_gh_repo');
+      const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
       const token = localStorage.getItem('valiant_gh_token');
       const badge = document.getElementById('syncStatusBadge');
       const repoLabel = document.getElementById('kpiRepoName');
 
-      if (repo && token) {
+      repoLabel.innerText = repo;
+      if (token) {
         badge.innerText = "GitHub 동기화 활성";
         badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20";
-        repoLabel.innerText = repo;
       } else {
-        badge.innerText = "로컬 모드";
-        badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
-        repoLabel.innerText = "로컬 브라우저";
+        badge.innerText = "저장소 연결됨 (토큰 입력 시 커밋 활성화)";
+        badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20";
       }
     }
 
@@ -765,7 +766,7 @@
     async function commitParsedDataToGitHub() {
       if (!tempParsedPositions) return;
 
-      const repo = localStorage.getItem('valiant_gh_repo');
+      const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
       const token = localStorage.getItem('valiant_gh_token');
 
       // Update in-memory state
