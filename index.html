@@ -335,9 +335,13 @@
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-300 mb-1">Google Gemini API Key (무료)</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block font-semibold text-slate-300">Google Gemini API Key (무료)</label>
+            <button type="button" onclick="testGeminiKey()" class="text-[11px] text-sky-400 hover:text-sky-300 font-semibold underline">🧪 연결 테스트</button>
+          </div>
           <input type="password" id="settingGeminiKey" placeholder="AIzaSyxxxxxxxxxxxx" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
-          <p class="text-[10px] text-slate-400 mt-1"><a href="https://aistudio.google.com" target="_blank" class="text-sky-400 underline">aistudio.google.com</a>에서 카드 없이 1초 발급 (이미지 자동인식용)</p>
+          <p id="geminiTestStatus" class="text-[11px] mt-1.5 hidden"></p>
+          <p class="text-[10px] text-slate-400 mt-1"><a href="https://aistudio.google.com" target="_blank" class="text-sky-400 underline">aistudio.google.com</a>에서 카드 없이 1초 발급 (이미지 자동인식 및 AI 비서용)</p>
         </div>
       </div>
 
@@ -613,7 +617,48 @@
       document.getElementById('settingGithubRepo').value = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
       document.getElementById('settingGithubToken').value = localStorage.getItem('valiant_gh_token') || '';
       document.getElementById('settingGeminiKey').value = localStorage.getItem('valiant_gemini_key') || '';
+      const testStatus = document.getElementById('geminiTestStatus');
+      if (testStatus) testStatus.classList.add('hidden');
       document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    async function testGeminiKey() {
+      const inputKey = document.getElementById('settingGeminiKey').value.trim();
+      const statusEl = document.getElementById('geminiTestStatus');
+      statusEl.classList.remove('hidden');
+
+      if (!inputKey) {
+        statusEl.innerText = "❌ 키를 먼저 입력해 주세요.";
+        statusEl.className = "text-[11px] mt-1.5 text-rose-400 font-medium";
+        return;
+      }
+
+      statusEl.innerText = "⏳ Gemini 1.5 Flash 연결 테스트 중...";
+      statusEl.className = "text-[11px] mt-1.5 text-sky-400 font-medium";
+
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${inputKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Hello" }] }]
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          const errMsg = data.error?.message || `HTTP ${res.status}`;
+          statusEl.innerText = `❌ 연결 실패: ${errMsg}`;
+          statusEl.className = "text-[11px] mt-1.5 text-rose-400 font-medium";
+        } else {
+          statusEl.innerText = "✅ 연결 성공! Gemini 1.5 Flash가 정상 작동합니다.";
+          statusEl.className = "text-[11px] mt-1.5 text-emerald-400 font-bold";
+        }
+      } catch (err) {
+        statusEl.innerText = `❌ 통신 오류: ${err.message}`;
+        statusEl.className = "text-[11px] mt-1.5 text-rose-400 font-medium";
+      }
     }
 
     function closeSettingsModal() {
@@ -706,8 +751,15 @@
           body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error(`Gemini API Error: ${res.statusText}`);
         const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error?.message || `HTTP ${res.status} 오류`);
+        }
+
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+          throw new Error("Gemini가 이미지를 분석하지 못했습니다. 다른 이미지로 시도해 주세요.");
+        }
+
         const rawReply = data.candidates[0].content.parts[0].text;
         
         // Clean JSON formatting
@@ -904,6 +956,14 @@
         });
 
         const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error?.message || `HTTP ${res.status} 오류`);
+        }
+
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+          throw new Error("Gemini가 빈 응답을 반환했습니다.");
+        }
+
         const reply = data.candidates[0].content.parts[0].text;
 
         const indicator = document.getElementById('typingIndicator');
