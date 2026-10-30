@@ -296,12 +296,20 @@
           <div class="flex items-center space-x-2">
             <span class="text-[11px] text-slate-400 font-medium shrink-0">모델:</span>
             <select id="chatModelSelect" onchange="onModelChanged()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono">
-              <option value="gemini-2.5-flash">gemini-2.5-flash ⚡</option>
-              <option value="gemini-2.0-flash">gemini-2.0-flash ⚡</option>
-              <option value="gemini-2.5-pro">gemini-2.5-pro 🧠</option>
-              <option value="gemini-flash-latest">gemini-flash-latest ⚡</option>
+              <optgroup label="🔥 차세대 (3.8 / 4.x)">
+                <option value="gemini-3.8-flash" selected>gemini-3.8-flash ⚡ (추천)</option>
+                <option value="gemini-3.8-flash-lite">gemini-3.8-flash-lite 🚀</option>
+                <option value="gemini-4-argon">gemini-4-argon 🧠 (플래그십)</option>
+                <option value="gemini-flash-latest">gemini-flash-latest ⚡</option>
+              </optgroup>
+              <optgroup label="⚡ 스테이블 (2.x)">
+                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+              </optgroup>
+              <option value="custom">✏️ 모델명 직접 입력...</option>
             </select>
-            <button onclick="refreshAvailableModels()" title="사용 가능한 모델 목록 새로고침" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700">
+            <button onclick="refreshAvailableModels()" title="Google API에서 실시간 활성 모델 목록 가져오기" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700">
               🔄
             </button>
           </div>
@@ -643,7 +651,25 @@
     // -------------------------------------------------------------
     function onModelChanged() {
       const select = document.getElementById('chatModelSelect');
-      if (select) {
+      if (!select) return;
+
+      if (select.value === 'custom') {
+        const customModel = prompt('사용할 Gemini 모델명을 직접 입력하세요 (예: gemini-3.8-flash, gemini-4-argon 등):');
+        if (customModel && customModel.trim()) {
+          const trimmed = customModel.trim();
+          let opt = [...select.options].find(o => o.value === trimmed);
+          if (!opt) {
+            opt = document.createElement('option');
+            opt.value = trimmed;
+            opt.innerText = `${trimmed} (직접 입력)`;
+            select.insertBefore(opt, select.firstChild);
+          }
+          select.value = trimmed;
+          localStorage.setItem('valiant_selected_model', trimmed);
+        } else {
+          select.value = localStorage.getItem('valiant_selected_model') || 'gemini-3.8-flash';
+        }
+      } else {
         localStorage.setItem('valiant_selected_model', select.value);
       }
     }
@@ -666,16 +692,24 @@
         const saved = localStorage.getItem('valiant_selected_model') || select.value;
         select.innerHTML = '';
         
+        // Custom input option at top
+        const customOpt = document.createElement('option');
+        customOpt.value = 'custom';
+        customOpt.innerText = '✏️ 모델명 직접 입력...';
+
         contentModels.forEach(m => {
           const modelId = m.name.replace('models/', '');
           const opt = document.createElement('option');
           opt.value = modelId;
           let badge = '';
-          if (modelId.includes('flash')) badge = ' ⚡';
-          else if (modelId.includes('pro')) badge = ' 🧠';
+          if (modelId.includes('4-') || modelId.includes('argon')) badge = ' 🧠';
+          else if (modelId.includes('3.8') || modelId.includes('flash')) badge = ' ⚡';
+          else if (modelId.includes('pro')) badge = ' 🎯';
           opt.innerText = `${modelId}${badge}`;
           select.appendChild(opt);
         });
+
+        select.appendChild(customOpt);
 
         if ([...select.options].some(o => o.value === saved)) {
           select.value = saved;
@@ -687,11 +721,11 @@
 
     async function callGeminiAPI(apiKey, payload) {
       const select = document.getElementById('chatModelSelect');
-      const userSelected = (select ? select.value : null) || localStorage.getItem('valiant_selected_model');
+      const userSelected = (select && select.value !== 'custom' ? select.value : null) || localStorage.getItem('valiant_selected_model');
       
       const candidateModels = [];
       if (userSelected) candidateModels.push(userSelected);
-      ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-flash-latest'].forEach(m => {
+      ['gemini-3.8-flash', 'gemini-3.8-flash-lite', 'gemini-4-argon', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'].forEach(m => {
         if (!candidateModels.includes(m)) candidateModels.push(m);
       });
 
