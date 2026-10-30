@@ -16,9 +16,10 @@
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- ApexCharts CDN & Marked Markdown Parser -->
+  <!-- ApexCharts CDN, Marked Markdown Parser, & Deep Chat Component -->
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script type="module" src="https://unpkg.com/deep-chat@latest/dist/deepChat.bundle.js"></script>
 
   <script>
     tailwind.config = {
@@ -281,8 +282,8 @@
 
     <!-- TAB 4: AI 자산비서 (Gemini 실시간 포트폴리오 상담) -->
     <div id="tabContent-aiAssistant" class="tab-content hidden space-y-6">
-      <div class="card-glass rounded-2xl p-5 flex flex-col h-[540px]">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
+      <div class="card-glass rounded-2xl p-4 sm:p-5 flex flex-col h-[600px] max-h-[82vh]">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-3">
           <div class="flex items-center space-x-3">
             <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
               🤖
@@ -294,7 +295,7 @@
           </div>
           <!-- Model & Reasoning Effort Selectors -->
           <div class="flex flex-wrap items-center gap-2">
-            <!-- Model Select (딱 2개!) -->
+            <!-- Model Select -->
             <div class="flex items-center space-x-1.5">
               <span class="text-[11px] text-slate-400 font-medium shrink-0">모델:</span>
               <select id="chatModelSelect" onchange="onModelChanged()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono">
@@ -318,22 +319,29 @@
           </div>
         </div>
 
-        <!-- Chat messages container -->
-        <div id="chatMessages" class="flex-1 overflow-y-auto py-4 space-y-3 pr-1 text-xs">
-          <div class="flex items-start space-x-2.5">
-            <div class="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-bold shrink-0">AI</div>
-            <div class="bg-slate-800/90 border border-slate-700/60 p-3 rounded-2xl rounded-tl-none max-w-[85%] text-slate-200 leading-relaxed">
-              안녕하세요! 현재 관리 중인 <strong>7.1억 자산(엔비디아 18.3%, 알파벳 12.9%, 테슬라 12.2% 등 20개 종목)</strong>의 비중 분석 및 리밸런싱 전략에 대해 무엇이든 물어보세요!
-            </div>
-          </div>
-        </div>
-
-        <!-- Input Box -->
-        <div class="pt-3 border-t border-slate-800 flex space-x-2">
-          <input type="text" id="chatInput" placeholder="예: 현재 기술주 비중이 너무 높은가? 리밸런싱 조언해줘" onkeypress="if(event.key==='Enter') sendChatMessage()" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
-          <button onclick="sendChatMessage()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-colors shrink-0">
-            전송
-          </button>
+        <!-- Deep Chat Web Component Container -->
+        <div class="flex-1 mt-3 w-full overflow-hidden flex flex-col min-h-[460px]">
+          <deep-chat
+            id="portfolioDeepChat"
+            style="border-radius: 14px; width: 100%; height: 100%; background-color: #0b1120; border: 1px solid #1e293b; font-family: 'Pretendard', sans-serif;"
+            messageStyles='{
+              "default": {
+                "shared": { "bubble": { "fontSize": "12.5px", "lineHeight": "1.6", "borderRadius": "12px", "maxWidth": "88%" } },
+                "user": { "bubble": { "backgroundColor": "#4f46e5", "color": "#ffffff" } },
+                "ai": { "bubble": { "backgroundColor": "#1e293b", "color": "#f1f5f9", "border": "1px solid #334155" } }
+              }
+            }'
+            textInput='{
+              "placeholder": { "text": "내 7.1억 포트폴리오 분석, 리밸런싱 전략 등 무엇이든 질문하세요..." },
+              "styles": {
+                "container": { "backgroundColor": "#0f172a", "border": "1px solid #334155", "borderRadius": "12px", "color": "#f8fafc" },
+                "text": { "color": "#f8fafc", "fontSize": "12.5px" }
+              }
+            }'
+            introMessage='{
+              "text": "안녕하세요! 현재 관리 중인 **7.1억 포트폴리오(엔비디아 18.3%, 알파벳 12.9%, 테슬라 12.2% 등 20개 종목)**의 실시간 자산 관리 비서입니다.\n\n비중 점검, 시장 전략, 절세/리밸런싱 등 무엇이든 편하게 물어보세요!"
+            }'
+          ></deep-chat>
         </div>
       </div>
     </div>
@@ -459,6 +467,7 @@
       renderHistoryTable();
       renderDonutChart();
       renderHistoryTrendChart();
+      initDeepChat();
     });
 
     function renderKPIs() {
@@ -634,6 +643,7 @@
 
       if (tabId === 'allocation' && donutChartInstance) donutChartInstance.render();
       if (tabId === 'history' && historyChartInstance) historyChartInstance.render();
+      if (tabId === 'aiAssistant') initDeepChat();
     }
 
     const DEFAULT_REPO = "wooyeonlee0/my-assets";
@@ -1015,93 +1025,89 @@
     }
 
     // -------------------------------------------------------------
-    // 8. Gemini Realtime Portfolio Assistant Chat
+    // 8. Deep Chat Web Component & Gemini Realtime AI Assistant
     // -------------------------------------------------------------
-    async function sendChatMessage() {
-      const input = document.getElementById('chatInput');
-      const text = input.value.trim();
-      if (!text) return;
+    let deepChatInitialized = false;
 
-      const chatBox = document.getElementById('chatMessages');
+    function initDeepChat() {
+      const chatEl = document.getElementById('portfolioDeepChat');
+      if (!chatEl || deepChatInitialized) return;
 
-      // User Bubble
-      const userDiv = document.createElement('div');
-      userDiv.className = "flex items-start justify-end space-x-2";
-      userDiv.innerHTML = `
-        <div class="bg-indigo-600 text-white p-3 rounded-2xl rounded-tr-none max-w-[85%] leading-relaxed">${text}</div>
-      `;
-      chatBox.appendChild(userDiv);
-      input.value = '';
-      chatBox.scrollTop = chatBox.scrollHeight;
+      chatEl.connect = {
+        handler: async (body, signals) => {
+          try {
+            const geminiKey = localStorage.getItem('valiant_gemini_key');
+            if (!geminiKey) {
+              signals.onResponse({
+                text: "⚠️ **Gemini API Key가 등록되지 않았습니다.**\n\n상단 우측 **⚙️ 설정** 버튼에서 Google Gemini API Key를 먼저 입력해 주세요! (Google AI Studio에서 무료로 1초 발급 가능합니다)"
+              });
+              return;
+            }
 
-      const geminiKey = localStorage.getItem('valiant_gemini_key');
-      if (!geminiKey) {
-        appendBotMessage("Gemini API Key가 등록되지 않았습니다. 상단 ⚙️ 설정에서 키를 먼저 입력해 주세요!");
-        return;
-      }
+            const messages = body.messages || [];
+            const lastMsg = messages[messages.length - 1];
+            const userText = (lastMsg && (lastMsg.text || (typeof lastMsg === 'string' ? lastMsg : ''))) || '';
 
-      // Typing indicator
-      const typingDiv = document.createElement('div');
-      typingDiv.id = "typingIndicator";
-      typingDiv.className = "flex items-start space-x-2.5 text-slate-400";
-      typingDiv.innerHTML = `
-        <div class="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-bold shrink-0">AI</div>
-        <div class="bg-slate-800/60 p-3 rounded-2xl rounded-tl-none">답변을 생성하고 있습니다...</div>
-      `;
-      chatBox.appendChild(typingDiv);
-      chatBox.scrollTop = chatBox.scrollHeight;
+            if (!userText.trim()) {
+              signals.onResponse({ text: "질문하실 내용을 입력해 주세요." });
+              return;
+            }
 
-      try {
-        const topStocks = currentPortfolio.positions.slice(0, 8).map(p => `${p.stock_name}: ${p.weight_pct}% (${(p.eval_amount/100000000).toFixed(2)}억)`).join(', ');
-        const sysContext = `당신은 최고 수준의 개인 자산관리 AI 자산 비서입니다.
-사용자의 현재 실제 순자산은 약 ${(currentPortfolio.total_net_worth/100000000).toFixed(2)}억원이며, 현금 비중은 ${(currentPortfolio.cash_ratio*100).toFixed(2)}%입니다.
+            // 실시간 7.1억 포트폴리오 요약 문맥
+            const topStocks = currentPortfolio.positions
+              .slice(0, 10)
+              .map(p => `${p.stock_name}: ${p.weight_pct}% (${(p.eval_amount/100000000).toFixed(2)}억)`)
+              .join(', ');
+
+            const systemPrompt = `[당신은 대한민국 최고 수준의 1:1 개인 자산관리 PB이자 포트폴리오 전문 AI 비서입니다.]
+사용자의 현재 실제 순자산은 약 ${(currentPortfolio.total_net_worth/100000000).toFixed(2)}억원(7억 1,086만 원)이며, 현금 비중은 ${(currentPortfolio.cash_ratio*100).toFixed(2)}%입니다.
 주요 종목 비중: ${topStocks}
-사용자의 질문에 대해 7.1억 자산의 비중, 거시경제 환경, 세제 혜택(ISA/연금) 관점을 고려하여 구체적이고 전문적이며 친절하게 한국어로 조언해 주세요.`;
+기타: 연금저축/ISA 및 미국 배당주/기술주 분산 운용 중.
 
-        const payload = {
-          contents: [{
-            parts: [{ text: `${sysContext}\n\n사용자 질문: ${text}` }]
-          }]
-        };
+[지침]
+1. 사용자의 질문에 대해 7.1억 자산의 포트폴리오 비중, 거시경제 환경, 배당금/현금흐름, 세제 혜택(ISA/연금) 관점을 고려하여 전문적이고 친절하게 한국어로 조언하세요.
+2. 마크다운(Markdown) 포맷(볼드, 리스트, 표 등)을 적극 활용하여 핵심을 명확하고 읽기 편하게 정리해 주세요.`;
 
-        const result = await callGeminiAPI(geminiKey, payload);
-        const data = result.data;
+            // 직전 대화 기록(최근 6개)을 Gemini 대화 포맷으로 매핑
+            const contents = [];
+            const recentMsgs = messages.slice(-6);
 
-        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-          throw new Error("Gemini가 빈 응답을 반환했습니다.");
+            recentMsgs.forEach((m, idx) => {
+              const isLast = (idx === recentMsgs.length - 1);
+              const role = (m.role === 'ai' || m.role === 'assistant') ? 'model' : 'user';
+              let textContent = m.text || (typeof m === 'string' ? m : '');
+
+              if (isLast && role === 'user') {
+                textContent = `${systemPrompt}\n\n[사용자 질문]\n${textContent}`;
+              }
+
+              contents.push({
+                role: role,
+                parts: [{ text: textContent }]
+              });
+            });
+
+            const payload = { contents };
+
+            // 503/429 자동 우회 및 Thinking Budget이 적용된 API 호출
+            const result = await callGeminiAPI(geminiKey, payload);
+            const data = result.data;
+
+            if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+              throw new Error("Gemini가 빈 응답을 반환했습니다. 잠시 후 다시 질문해 주세요.");
+            }
+
+            const replyText = data.candidates[0].content.parts[0].text;
+            signals.onResponse({ text: replyText });
+
+          } catch (err) {
+            console.error("[DeepChat Error]", err);
+            signals.onResponse({ error: `오류가 발생했습니다: ${err.message}` });
+          }
         }
+      };
 
-        const reply = data.candidates[0].content.parts[0].text;
-
-        const indicator = document.getElementById('typingIndicator');
-        if (indicator) indicator.remove();
-
-        appendBotMessage(reply);
-
-      } catch (err) {
-        const indicator = document.getElementById('typingIndicator');
-        if (indicator) indicator.remove();
-        appendBotMessage(`오류가 발생했습니다: ${err.message}`);
-      }
-    }
-
-    function appendBotMessage(msg) {
-      const chatBox = document.getElementById('chatMessages');
-      const botDiv = document.createElement('div');
-      botDiv.className = "flex items-start space-x-2.5";
-      
-      const parsedHtml = (window.marked && typeof window.marked.parse === 'function') 
-        ? window.marked.parse(msg) 
-        : msg;
-
-      botDiv.innerHTML = `
-        <div class="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-bold shrink-0 text-xs">AI</div>
-        <div class="bg-slate-800/90 border border-slate-700/60 p-3.5 rounded-2xl rounded-tl-none max-w-[88%] text-slate-200 leading-relaxed text-xs">
-          ${parsedHtml}
-        </div>
-      `;
-      chatBox.appendChild(botDiv);
-      chatBox.scrollTop = chatBox.scrollHeight;
+      deepChatInitialized = true;
     }
   </script>
 </body>
