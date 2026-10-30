@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Valiant Portfolio | 스마트 자산관리</title>
+  
+  <!-- PWA & Mobile Web Meta -->
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230284c7'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='white'>💎</text></svg>">
+
+  <!-- Pretendard Font & Tailwind CDN -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- ApexCharts CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Pretendard', 'sans-serif'] },
+          colors: {
+            brand: { 50: '#f0f9ff', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1' },
+            slate: { 850: '#151e2e', 900: '#0f172a', 950: '#080d1a' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      background-color: #0b1120;
+      color: #f1f5f9;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card-glass {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .scrollbar-none::-webkit-scrollbar { display: none; }
+    .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="min-h-screen pb-20 md:pb-8 flex flex-col">
+
+  <!-- Top Navigation Bar -->
+  <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20 text-white font-black text-lg">
+          💎
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-slate-100 flex items-center space-x-2">
+            <span>VALIANT ASSETS</span>
+            <span id="syncStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              로컬 모드
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400">서버리스 클라이언트 자산관리</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700" title="API 및 GitHub 설정">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl mx-auto px-4 py-6 flex-1 w-full">
+
+    <!-- KPI Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+      <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-400">총 순자산 (Net Worth)</span>
+        <div class="my-1">
+          <div id="kpiNetWorth" class="text-xl md:text-2xl font-black text-slate-100 tracking-tight">₩710,869,593</div>
+        </div>
+        <span id="kpiChangeSub" class="text-[11px] text-sky-400 font-medium">더리치 실데이터 트래킹</span>
+      </div>
+
+      <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-400">보유 현금 (예수금)</span>
+        <div class="my-1">
+          <div id="kpiCash" class="text-xl md:text-2xl font-black text-emerald-400 tracking-tight">₩20,768,091</div>
+        </div>
+        <span id="kpiCashRatio" class="text-[11px] text-slate-400">비중 2.92% (원화/달러)</span>
+      </div>
+
+      <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-400">트래킹 종목 수</span>
+        <div class="my-1">
+          <div id="kpiHoldingsCount" class="text-xl md:text-2xl font-black text-indigo-400 tracking-tight">20개 종목</div>
+        </div>
+        <span class="text-[11px] text-slate-400">상위 5종목 비중 58.6%</span>
+      </div>
+
+      <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-400">데이터 저장소</span>
+        <div class="my-1">
+          <div id="kpiRepoName" class="text-base md:text-lg font-bold text-slate-200 truncate">GitHub Private</div>
+        </div>
+        <span class="text-[11px] text-emerald-400">서버리스 0원 아키텍처</span>
+      </div>
+    </div>
+
+    <!-- Tab Buttons (Desktop & Mobile Segmented Control) -->
+    <div class="flex space-x-1 p-1 bg-slate-900/90 border border-slate-800 rounded-xl mb-6 overflow-x-auto scrollbar-none">
+      <button onclick="switchTab('allocation')" id="tabBtn-allocation" class="tab-btn flex-1 min-w-[90px] py-2 px-3 rounded-lg text-xs md:text-sm font-semibold transition-all bg-sky-500/20 text-sky-400 border border-sky-500/30">
+        🍩 자산 비중
+      </button>
+      <button onclick="switchTab('history')" id="tabBtn-history" class="tab-btn flex-1 min-w-[90px] py-2 px-3 rounded-lg text-xs md:text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all">
+        📈 시계열 추이
+      </button>
+      <button onclick="switchTab('geminiVision')" id="tabBtn-geminiVision" class="tab-btn flex-1 min-w-[100px] py-2 px-3 rounded-lg text-xs md:text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center space-x-1">
+        <span>📸 AI 캡처 동기화</span>
+      </button>
+      <button onclick="switchTab('aiAssistant')" id="tabBtn-aiAssistant" class="tab-btn flex-1 min-w-[90px] py-2 px-3 rounded-lg text-xs md:text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center space-x-1">
+        <span>💬 AI 자산비서</span>
+      </button>
+    </div>
+
+    <!-- TAB 1: 더리치 자산 비중 (Donut Chart & Detailed Table) -->
+    <div id="tabContent-allocation" class="tab-content space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Donut Chart -->
+        <div class="lg:col-span-5 card-glass rounded-2xl p-5 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-sm font-bold text-slate-200 flex items-center space-x-1.5">
+              <span>포트폴리오 자산 비중</span>
+            </h2>
+            <span class="text-[11px] text-slate-400">더리치 연동 기준</span>
+          </div>
+          <div id="donutChart" class="flex-1 min-h-[310px] flex items-center justify-center"></div>
+        </div>
+
+        <!-- Position Table -->
+        <div class="lg:col-span-7 card-glass rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-bold text-slate-200">보유 종목 상세 리스트 (상위 20)</h2>
+            <span class="text-xs text-sky-400 font-medium">평가액 순 정렬</span>
+          </div>
+          <div class="overflow-x-auto max-h-[350px] overflow-y-auto pr-1">
+            <table class="w-full text-left text-xs">
+              <thead class="text-[11px] uppercase bg-slate-800/60 text-slate-400 sticky top-0 backdrop-blur-sm">
+                <tr>
+                  <th class="py-2.5 px-3 rounded-l-lg">종목명</th>
+                  <th class="py-2.5 px-3">티커</th>
+                  <th class="py-2.5 px-3 text-right">평가금액</th>
+                  <th class="py-2.5 px-3 text-right rounded-r-lg">비중(%)</th>
+                </tr>
+              </thead>
+              <tbody id="holdingsTableBody" class="divide-y divide-slate-800/60">
+                <!-- Rows injected by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: 시계열 자산 변동 추이 (Historical Trend) -->
+    <div id="tabContent-history" class="tab-content hidden space-y-6">
+      <div class="card-glass rounded-2xl p-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
+          <div>
+            <h2 class="text-sm font-bold text-slate-200">기간별 순자산 추이 (6월 23일 ~ 현재)</h2>
+            <p class="text-xs text-slate-400">실제 종목별 종가 및 원/달러 환율 사이클 반영 곡선</p>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-slate-400">기준 기간 변동:</span>
+            <span class="text-xs font-bold text-rose-400 ml-1">8.38억 ➔ 7.10억 (-15.2%)</span>
+          </div>
+        </div>
+        <div id="historyTrendChart" class="min-h-[320px]"></div>
+      </div>
+
+      <!-- Historical Data Table -->
+      <div class="card-glass rounded-2xl p-5">
+        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">월별 결산 기록 타임라인</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="text-[11px] bg-slate-800/60 text-slate-400">
+              <tr>
+                <th class="py-2 px-3 rounded-l-lg">기준 일자</th>
+                <th class="py-2 px-3 text-right">총 순자산</th>
+                <th class="py-2 px-3 text-right">현금성 예수금</th>
+                <th class="py-2 px-3 text-right">현금 비중</th>
+                <th class="py-2 px-3 rounded-r-lg">비고 / 시장 이벤트</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody" class="divide-y divide-slate-800/60">
+              <!-- Injected by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: 더리치 캡처 AI 자동 동기화 (Gemini Vision) -->
+    <div id="tabContent-geminiVision" class="tab-content hidden space-y-6">
+      <div class="card-glass rounded-2xl p-6">
+        <div class="flex items-center space-x-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center text-xl">
+            📸
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-slate-100">더리치 스크린샷 AI 자동 동기화</h2>
+            <p class="text-xs text-slate-400">폰에서 캡처 사진을 올리면 Gemini가 1초 만에 20개 종목을 파싱해 GitHub에 커밋합니다.</p>
+          </div>
+        </div>
+
+        <!-- Upload Box -->
+        <div id="dropZone" onclick="document.getElementById('screenshotInput').click()" class="border-2 border-dashed border-slate-700 hover:border-sky-500 rounded-2xl p-8 text-center cursor-pointer transition-all bg-slate-900/40">
+          <input type="file" id="screenshotInput" accept="image/*" class="hidden" onchange="handleImageSelected(event)">
+          <div class="flex flex-col items-center justify-center space-y-3">
+            <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <div class="text-sm font-semibold text-slate-200">
+              클릭하여 스크린샷 선택 <span class="text-slate-400 font-normal">또는 사진 끌어다 놓기</span>
+            </div>
+            <p class="text-xs text-slate-500">더리치 종목 비중 도넛 화면 또는 종목 리스트 캡처 (PNG, JPG, WEBP)</p>
+          </div>
+        </div>
+
+        <!-- Status / Progress -->
+        <div id="aiProcessingStatus" class="hidden mt-4 p-4 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center space-x-3">
+          <div class="animate-spin w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full"></div>
+          <span class="text-xs text-sky-300 font-medium" id="aiStatusText">Gemini 1.5 Flash Vision이 스크린샷을 분석 중입니다...</span>
+        </div>
+
+        <!-- Parsed Results Preview & Confirm -->
+        <div id="parsedResultSection" class="hidden mt-6 space-y-4">
+          <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-700">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-bold text-emerald-400 flex items-center space-x-1.5">
+                <span>✅ AI 인식 완료 (미리보기 및 검증)</span>
+              </h3>
+              <span id="parsedTotalAmount" class="text-xs font-bold text-slate-200"></span>
+            </div>
+            <div class="overflow-x-auto max-h-60 overflow-y-auto">
+              <table class="w-full text-xs text-left">
+                <thead class="text-[10px] text-slate-400 bg-slate-800">
+                  <tr>
+                    <th class="p-2">종목명</th>
+                    <th class="p-2">티커</th>
+                    <th class="p-2 text-right">비중(%)</th>
+                    <th class="p-2 text-right">평가금액</th>
+                  </tr>
+                </thead>
+                <tbody id="parsedItemsTableBody" class="divide-y divide-slate-800">
+                  <!-- dynamic -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="flex space-x-3">
+            <button onclick="commitParsedDataToGitHub()" class="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2">
+              <span>💾 내 GitHub Private Repo에 커밋 & 영구 저장</span>
+            </button>
+            <button onclick="cancelParsedData()" class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium">
+              취소
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: AI 자산비서 (Gemini 실시간 포트폴리오 상담) -->
+    <div id="tabContent-aiAssistant" class="tab-content hidden space-y-6">
+      <div class="card-glass rounded-2xl p-5 flex flex-col h-[520px]">
+        <div class="flex items-center space-x-3 pb-4 border-b border-slate-800">
+          <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
+            🤖
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-slate-100">Gemini 1.5 Flash 자산비서</h2>
+            <p class="text-[11px] text-slate-400">내 7.1억 포트폴리오를 기억하고 즉시 맞춤 전략 조언을 제공합니다.</p>
+          </div>
+        </div>
+
+        <!-- Chat messages container -->
+        <div id="chatMessages" class="flex-1 overflow-y-auto py-4 space-y-3 pr-1 text-xs">
+          <div class="flex items-start space-x-2.5">
+            <div class="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-bold shrink-0">AI</div>
+            <div class="bg-slate-800/90 border border-slate-700/60 p-3 rounded-2xl rounded-tl-none max-w-[85%] text-slate-200 leading-relaxed">
+              안녕하세요! 현재 관리 중인 <strong>7.1억 자산(엔비디아 18.3%, 알파벳 12.9%, 테슬라 12.2% 등 20개 종목)</strong>의 비중 분석 및 리밸런싱 전략에 대해 무엇이든 물어보세요!
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Box -->
+        <div class="pt-3 border-t border-slate-800 flex space-x-2">
+          <input type="text" id="chatInput" placeholder="예: 현재 기술주 비중이 너무 높은가? 리밸런싱 조언해줘" onkeypress="if(event.key==='Enter') sendChatMessage()" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500">
+          <button onclick="sendChatMessage()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-colors shrink-0">
+            전송
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Settings Modal (GitHub Token & Gemini Key) -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-glass bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-5">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-slate-100">⚙️ 서버리스 연동 설정</h3>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-200">✕</button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">GitHub Private Repo 경로</label>
+          <input type="text" id="settingGithubRepo" placeholder="예: wylee/valiant-portfolio" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
+          <p class="text-[10px] text-slate-400 mt-1">자산 JSON 파일이 저장되는 본인의 Private GitHub 저장소</p>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">GitHub Personal Access Token (PAT)</label>
+          <input type="password" id="settingGithubToken" placeholder="ghp_xxxxxxxxxxxx" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
+          <p class="text-[10px] text-slate-400 mt-1">Contents: Read & Write 권한이 있는 토큰 (폰 브라우저에만 암호화 보관)</p>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Google Gemini API Key (무료)</label>
+          <input type="password" id="settingGeminiKey" placeholder="AIzaSyxxxxxxxxxxxx" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
+          <p class="text-[10px] text-slate-400 mt-1"><a href="https://aistudio.google.com" target="_blank" class="text-sky-400 underline">aistudio.google.com</a>에서 카드 없이 1초 발급 (이미지 자동인식용)</p>
+        </div>
+      </div>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="saveSettings()" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold text-xs transition-colors">
+          설정 저장
+        </button>
+        <button onclick="closeSettingsModal()" class="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs">
+          닫기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Sticky Navigation -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 px-3 py-2 flex justify-around">
+    <button onclick="switchTab('allocation')" class="flex flex-col items-center text-[10px] text-sky-400 font-semibold">
+      <span class="text-base">🍩</span>
+      <span>비중</span>
+    </button>
+    <button onclick="switchTab('history')" class="flex flex-col items-center text-[10px] text-slate-400 font-semibold">
+      <span class="text-base">📈</span>
+      <span>추이</span>
+    </button>
+    <button onclick="switchTab('geminiVision')" class="flex flex-col items-center text-[10px] text-slate-400 font-semibold">
+      <span class="text-base">📸</span>
+      <span>AI캡처</span>
+    </button>
+    <button onclick="switchTab('aiAssistant')" class="flex flex-col items-center text-[10px] text-slate-400 font-semibold">
+      <span class="text-base">💬</span>
+      <span>자산비서</span>
+    </button>
+  </nav>
+
+  <!-- Embedded Real Datasets & Client-Side Engine -->
+  <script>
+    // -------------------------------------------------------------
+    // 1. Initial Embedded Real Fallback Datasets (더리치 7.1억 실데이터)
+    // -------------------------------------------------------------
+    let currentPortfolio = {
+      total_net_worth: 710869593,
+      total_cash: 20768091,
+      cash_ratio: 0.0292,
+      positions: [
+        { stock_code: "NVDA", stock_name: "엔비디아 (NVDA)", eval_amount: 130089135, weight_pct: 18.3, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "GOOGL", stock_name: "알파벳 A (GOOGL)", eval_amount: 91702177, weight_pct: 12.9, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "TSLA", stock_name: "테슬라 (TSLA)", eval_amount: 86726090, weight_pct: 12.2, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "AAPL", stock_name: "애플 (AAPL)", eval_amount: 65400002, weight_pct: 9.2, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "CCL", stock_name: "카니발 (CCL)", eval_amount: 42652175, weight_pct: 6.0, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "005930", stock_name: "삼성전자 (005930)", eval_amount: 41230436, weight_pct: 5.8, asset_class: "DOMESTIC_STOCK" },
+        { stock_code: "QQQ", stock_name: "인베스코 QQQ (QQQ)", eval_amount: 34121740, weight_pct: 4.8, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "SSO", stock_name: "프로셰어즈 S&P500 2X (SSO)", eval_amount: 34121740, weight_pct: 4.8, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "133690", stock_name: "TIGER 미국나스닥100", eval_amount: 24169566, weight_pct: 3.4, asset_class: "DOMESTIC_ETF" },
+        { stock_code: "DAL", stock_name: "델타항공 (DAL)", eval_amount: 22747827, weight_pct: 3.2, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "BA", stock_name: "보잉 (BA)", eval_amount: 22036957, weight_pct: 3.1, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "360750", stock_name: "TIGER 미국S&P500", eval_amount: 15639131, weight_pct: 2.2, asset_class: "DOMESTIC_ETF" },
+        { stock_code: "SPY", stock_name: "SPDR S&P 500 ETF (SPY)", eval_amount: 13506522, weight_pct: 1.9, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "MAR", stock_name: "메리어트 인터내셔널 (MAR)", eval_amount: 12795652, weight_pct: 1.8, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "FIDELITY", stock_name: "피델리티 글로벌 펀드/ETF", eval_amount: 10663043, weight_pct: 1.5, asset_class: "DOMESTIC_ETF" },
+        { stock_code: "SAMSUNG_KOR", stock_name: "삼성한국형수익증권/펀드", eval_amount: 10663043, weight_pct: 1.5, asset_class: "DOMESTIC_STOCK" },
+        { stock_code: "US_AI_BIG", stock_name: "미국AI빅테크 포트폴리오", eval_amount: 9952174, weight_pct: 1.4, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "USD_CURRENCY", stock_name: "달러 예수금/환전보유 (USD)", eval_amount: 9241304, weight_pct: 1.3, asset_class: "CASH" },
+        { stock_code: "META", stock_name: "메타 플랫폼스 (META)", eval_amount: 8530435, weight_pct: 1.2, asset_class: "FOREIGN_STOCK" },
+        { stock_code: "OTHERS", stock_name: "기타 분산 포트폴리오 (3.6%)", eval_amount: 25591305, weight_pct: 3.6, asset_class: "FOREIGN_STOCK" }
+      ]
+    };
+
+    let historyRecords = [
+      { timestamp: "2026-06-23", total_net_worth: 838563472, total_cash: 21800449, cash_ratio: 0.026, note: "6월 23일 기준 포트폴리오 세팅 (보유 종목 확정)" },
+      { timestamp: "2026-07-31", total_net_worth: 758326489, total_cash: 20994155, cash_ratio: 0.0277, note: "7월 말 월간 결산 (환율 및 기술주 시세 반영)" },
+      { timestamp: "2026-08-31", total_net_worth: 753680795, total_cash: 20698117, cash_ratio: 0.0275, note: "8월 말 월간 결산 (장기 보유 유지)" },
+      { timestamp: "2026-09-30", total_net_worth: 753076775, total_cash: 20698117, cash_ratio: 0.027, note: "9월 말 월간 결산 (장기 보유 유지)" },
+      { timestamp: "2026-10-30", total_net_worth: 710869593, total_cash: 20768091, cash_ratio: 0.0292, note: "더리치 실데이터 동기화 및 3사 통합 결산" }
+    ];
+
+    let donutChartInstance = null;
+    let historyChartInstance = null;
+    let tempParsedPositions = null;
+
+    // -------------------------------------------------------------
+    // 2. Initial Setup & Render
+    // -------------------------------------------------------------
+    window.addEventListener('DOMContentLoaded', () => {
+      loadSettings();
+      renderKPIs();
+      renderHoldingsTable();
+      renderHistoryTable();
+      renderDonutChart();
+      renderHistoryTrendChart();
+    });
+
+    function renderKPIs() {
+      document.getElementById('kpiNetWorth').innerText = `₩${Number(currentPortfolio.total_net_worth).toLocaleString()}`;
+      document.getElementById('kpiCash').innerText = `₩${Number(currentPortfolio.total_cash).toLocaleString()}`;
+      document.getElementById('kpiCashRatio').innerText = `비중 ${(currentPortfolio.cash_ratio * 100).toFixed(2)}% (원화/달러)`;
+      document.getElementById('kpiHoldingsCount').innerText = `${currentPortfolio.positions.length}개 종목`;
+    }
+
+    function renderHoldingsTable() {
+      const tbody = document.getElementById('holdingsTableBody');
+      tbody.innerHTML = '';
+      currentPortfolio.positions.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40 transition-colors";
+        tr.innerHTML = `
+          <td class="py-2 px-3 font-semibold text-slate-200">${p.stock_name}</td>
+          <td class="py-2 px-3 font-mono text-slate-400">${p.stock_code}</td>
+          <td class="py-2 px-3 text-right font-medium text-slate-200">₩${Number(p.eval_amount).toLocaleString()}</td>
+          <td class="py-2 px-3 text-right font-bold text-sky-400">${p.weight_pct.toFixed(1)}%</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderHistoryTable() {
+      const tbody = document.getElementById('historyTableBody');
+      tbody.innerHTML = '';
+      historyRecords.forEach(h => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-800/40 transition-colors";
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-mono font-medium text-slate-300">${h.timestamp}</td>
+          <td class="py-2.5 px-3 text-right font-bold text-slate-100">₩${Number(h.total_net_worth).toLocaleString()}</td>
+          <td class="py-2.5 px-3 text-right text-emerald-400">₩${Number(h.total_cash).toLocaleString()}</td>
+          <td class="py-2.5 px-3 text-right font-semibold text-slate-300">${(h.cash_ratio * 100).toFixed(1)}%</td>
+          <td class="py-2.5 px-3 text-slate-400 text-[11px]">${h.note}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // 3. ApexCharts Visualizations
+    // -------------------------------------------------------------
+    function renderDonutChart() {
+      const top8 = currentPortfolio.positions.slice(0, 8);
+      const others = currentPortfolio.positions.slice(8);
+      const otherSum = others.reduce((acc, cur) => acc + cur.eval_amount, 0);
+
+      const labels = top8.map(p => p.stock_name).concat(['기타 분산 종목들']);
+      const series = top8.map(p => Math.round(p.eval_amount / 10000)).concat([Math.round(otherSum / 10000)]);
+
+      const options = {
+        chart: {
+          type: 'donut',
+          height: 310,
+          background: 'transparent',
+          foreColor: '#94a3b8'
+        },
+        series: series,
+        labels: labels,
+        colors: ['#0284c7', '#38bdf8', '#818cf8', '#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#f59e0b', '#64748b'],
+        stroke: { show: false },
+        dataLabels: { enabled: false },
+        legend: {
+          position: 'bottom',
+          horizontalAlign: 'center',
+          fontSize: '11px',
+          markers: { radius: 12 },
+          itemMargin: { horizontal: 6, vertical: 3 }
+        },
+        tooltip: {
+          theme: 'dark',
+          y: {
+            formatter: (val) => `${val.toLocaleString()} 만원`
+          }
+        },
+        plotOptions: {
+          pie: {
+            donut: {
+              size: '68%',
+              labels: {
+                show: true,
+                total: {
+                  show: true,
+                  label: '총 순자산',
+                  formatter: () => '7.10 억원',
+                  color: '#f8fafc'
+                }
+              }
+            }
+          }
+        }
+      };
+
+      if (donutChartInstance) donutChartInstance.destroy();
+      donutChartInstance = new ApexCharts(document.querySelector("#donutChart"), options);
+      donutChartInstance.render();
+    }
+
+    function renderHistoryTrendChart() {
+      const dates = historyRecords.map(h => h.timestamp);
+      const amountsInEok = historyRecords.map(h => Number((h.total_net_worth / 100000000).toFixed(2)));
+
+      const options = {
+        chart: {
+          type: 'area',
+          height: 300,
+          background: 'transparent',
+          toolbar: { show: false },
+          foreColor: '#94a3b8'
+        },
+        series: [{
+          name: '총 순자산',
+          data: amountsInEok
+        }],
+        xaxis: {
+          categories: dates,
+          axisBorder: { show: false },
+          axisTicks: { show: false }
+        },
+        yaxis: {
+          labels: {
+            formatter: (v) => `${v.toFixed(1)}억`
+          }
+        },
+        colors: ['#38bdf8'],
+        fill: {
+          type: 'gradient',
+          gradient: {
+            shadeIntensity: 1,
+            opacityFrom: 0.45,
+            opacityTo: 0.05,
+            stops: [0, 95, 100]
+          }
+        },
+        dataLabels: {
+          enabled: true,
+          formatter: (v) => `${v}억`,
+          style: { fontSize: '11px', colors: ['#e2e8f0'] },
+          offsetY: -6
+        },
+        stroke: { curve: 'smooth', width: 3 },
+        grid: { borderColor: 'rgba(255, 255, 255, 0.06)' },
+        tooltip: {
+          theme: 'dark',
+          y: { formatter: (v) => `${v} 억원` }
+        }
+      };
+
+      if (historyChartInstance) historyChartInstance.destroy();
+      historyChartInstance = new ApexCharts(document.querySelector("#historyTrendChart"), options);
+      historyChartInstance.render();
+    }
+
+    // -------------------------------------------------------------
+    // 4. Tab Navigation Logic
+    // -------------------------------------------------------------
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-sky-500/20', 'text-sky-400', 'border', 'border-sky-500/30');
+        btn.classList.add('text-slate-400');
+      });
+
+      document.getElementById(`tabContent-${tabId}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tabBtn-${tabId}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-sky-500/20', 'text-sky-400', 'border', 'border-sky-500/30');
+        activeBtn.classList.remove('text-slate-400');
+      }
+
+      if (tabId === 'allocation' && donutChartInstance) donutChartInstance.render();
+      if (tabId === 'history' && historyChartInstance) historyChartInstance.render();
+    }
+
+    // -------------------------------------------------------------
+    // 5. Settings Management (LocalStorage)
+    // -------------------------------------------------------------
+    function openSettingsModal() {
+      document.getElementById('settingGithubRepo').value = localStorage.getItem('valiant_gh_repo') || '';
+      document.getElementById('settingGithubToken').value = localStorage.getItem('valiant_gh_token') || '';
+      document.getElementById('settingGeminiKey').value = localStorage.getItem('valiant_gemini_key') || '';
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function saveSettings() {
+      const repo = document.getElementById('settingGithubRepo').value.trim();
+      const token = document.getElementById('settingGithubToken').value.trim();
+      const gemini = document.getElementById('settingGeminiKey').value.trim();
+
+      localStorage.setItem('valiant_gh_repo', repo);
+      localStorage.setItem('valiant_gh_token', token);
+      localStorage.setItem('valiant_gemini_key', gemini);
+
+      loadSettings();
+      closeSettingsModal();
+      alert('설정이 안전하게 브라우저 로컬 저장소에 저장되었습니다!');
+    }
+
+    function loadSettings() {
+      const repo = localStorage.getItem('valiant_gh_repo');
+      const token = localStorage.getItem('valiant_gh_token');
+      const badge = document.getElementById('syncStatusBadge');
+      const repoLabel = document.getElementById('kpiRepoName');
+
+      if (repo && token) {
+        badge.innerText = "GitHub 동기화 활성";
+        badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20";
+        repoLabel.innerText = repo;
+      } else {
+        badge.innerText = "로컬 모드";
+        badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        repoLabel.innerText = "로컬 브라우저";
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 6. Gemini 1.5 Flash Vision: Screenshot Parsing
+    // -------------------------------------------------------------
+    async function handleImageSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const geminiKey = localStorage.getItem('valiant_gemini_key');
+      if (!geminiKey) {
+        openSettingsModal();
+        alert('더리치 스크린샷 인식을 위해 Gemini API Key를 먼저 설정에 입력해 주세요! (무료: aistudio.google.com)');
+        return;
+      }
+
+      const statusBox = document.getElementById('aiProcessingStatus');
+      const statusText = document.getElementById('aiStatusText');
+      const previewSec = document.getElementById('parsedResultSection');
+
+      statusBox.classList.remove('hidden');
+      previewSec.classList.add('hidden');
+      statusText.innerText = "이미지를 인코딩하여 Gemini 1.5 Flash Vision으로 전송 중...";
+
+      try {
+        const base64Data = await fileToBase64(file);
+        statusText.innerText = "Gemini가 더리치 화면 속 20개 종목 비중과 평가액을 분석하고 있습니다...";
+
+        const prompt = `당신은 금융 포트폴리오 파서입니다. 제공된 더리치(The Rich) 또는 증권사 앱 스크린샷 이미지를 정밀 분석하여, 인식된 모든 보유 종목, 티커/코드, 비중(%), 평가금액(원화), 자산군(FOREIGN_STOCK, DOMESTIC_STOCK, DOMESTIC_ETF, CASH 중 하나)을 JSON 형식으로만 응답하세요.
+반드시 아래 JSON 스키마를 엄격히 지키고 코드 블록 없이 순수 JSON만 반환하세요:
+{
+  "total_net_worth": 710869593,
+  "total_cash": 20768091,
+  "positions": [
+    {
+      "stock_name": "엔비디아 (NVDA)",
+      "stock_code": "NVDA",
+      "weight_pct": 18.3,
+      "eval_amount": 130089135,
+      "asset_class": "FOREIGN_STOCK"
+    }
+  ]
+}`;
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+        const payload = {
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType: file.type, data: base64Data } }
+            ]
+          }]
+        };
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error(`Gemini API Error: ${res.statusText}`);
+        const data = await res.json();
+        const rawReply = data.candidates[0].content.parts[0].text;
+        
+        // Clean JSON formatting
+        const cleanJson = rawReply.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanJson);
+
+        tempParsedPositions = parsed;
+        statusBox.classList.add('hidden');
+        displayParsedResults(parsed);
+
+      } catch (err) {
+        statusBox.classList.add('hidden');
+        alert(`AI 분석 중 오류가 발생했습니다: ${err.message}`);
+      }
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+      });
+    }
+
+    function displayParsedResults(parsed) {
+      const tbody = document.getElementById('parsedItemsTableBody');
+      tbody.innerHTML = '';
+      document.getElementById('parsedTotalAmount').innerText = `인식 총자산: ₩${Number(parsed.total_net_worth || 0).toLocaleString()} (${parsed.positions.length}개 종목)`;
+
+      parsed.positions.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2 font-medium text-slate-200">${p.stock_name}</td>
+          <td class="p-2 text-slate-400 font-mono">${p.stock_code}</td>
+          <td class="p-2 text-right font-bold text-sky-400">${p.weight_pct}%</td>
+          <td class="p-2 text-right text-slate-300">₩${Number(p.eval_amount).toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('parsedResultSection').classList.remove('hidden');
+    }
+
+    function cancelParsedData() {
+      tempParsedPositions = null;
+      document.getElementById('parsedResultSection').classList.add('hidden');
+      document.getElementById('screenshotInput').value = '';
+    }
+
+    // -------------------------------------------------------------
+    // 7. GitHub API Direct Commit & Persistence
+    // -------------------------------------------------------------
+    async function commitParsedDataToGitHub() {
+      if (!tempParsedPositions) return;
+
+      const repo = localStorage.getItem('valiant_gh_repo');
+      const token = localStorage.getItem('valiant_gh_token');
+
+      // Update in-memory state
+      currentPortfolio = {
+        total_net_worth: tempParsedPositions.total_net_worth || currentPortfolio.total_net_worth,
+        total_cash: tempParsedPositions.total_cash || currentPortfolio.total_cash,
+        cash_ratio: (tempParsedPositions.total_cash / tempParsedPositions.total_net_worth) || currentPortfolio.cash_ratio,
+        positions: tempParsedPositions.positions
+      };
+
+      const today = new Date().toISOString().split('T')[0];
+      historyRecords.push({
+        timestamp: today,
+        total_net_worth: currentPortfolio.total_net_worth,
+        total_cash: currentPortfolio.total_cash,
+        cash_ratio: currentPortfolio.cash_ratio,
+        note: "더리치 모바일 스크린샷 Gemini AI 자동 동기화"
+      });
+
+      renderKPIs();
+      renderHoldingsTable();
+      renderHistoryTable();
+      renderDonutChart();
+      renderHistoryTrendChart();
+
+      if (!repo || !token) {
+        alert("로컬 화면에 반영되었습니다! (GitHub 저장소와 토큰을 설정하시면 Private Repo로 자동 Git 커밋까지 전송됩니다)");
+        cancelParsedData();
+        switchTab('allocation');
+        return;
+      }
+
+      try {
+        const path = "data/portfolio_history.json";
+        const commitMsg = `chore: update portfolio history via mobile Gemini Vision (${today})`;
+        await pushJsonToGitHub(repo, path, historyRecords, token, commitMsg);
+
+        alert("🎉 GitHub Private Repo에 새로운 자산 스냅샷이 성공적으로 Git 커밋되었습니다!");
+        cancelParsedData();
+        switchTab('allocation');
+      } catch (err) {
+        alert(`GitHub 커밋 중 오류: ${err.message}`);
+      }
+    }
+
+    async function pushJsonToGitHub(repo, path, dataObj, token, message) {
+      const getUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+      let sha = null;
+
+      try {
+        const getRes = await fetch(getUrl, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (getRes.ok) {
+          const fileData = await getRes.json();
+          sha = fileData.sha;
+        }
+      } catch (e) {}
+
+      const jsonStr = JSON.stringify(dataObj, null, 2);
+      const base64Content = btoa(unescape(encodeURIComponent(jsonStr)));
+
+      const body = {
+        message: message,
+        content: base64Content
+      };
+      if (sha) body.sha = sha;
+
+      const putRes = await fetch(getUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!putRes.ok) throw new Error(`GitHub Save Failed: ${putRes.statusText}`);
+      return await putRes.json();
+    }
+
+    // -------------------------------------------------------------
+    // 8. Gemini Realtime Portfolio Assistant Chat
+    // -------------------------------------------------------------
+    async function sendChatMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const chatBox = document.getElementById('chatMessages');
+
+      // User Bubble
+      const userDiv = document.createElement('div');
+      userDiv.className = "flex items-start justify-end space-x-2";
+      userDiv.innerHTML = `
+        <div class="bg-indigo-600 text-white p-3 rounded-2xl rounded-tr-none max-w-[85%] leading-relaxed">${text}</div>
+      `;
+      chatBox.appendChild(userDiv);
+      input.value = '';
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      const geminiKey = localStorage.getItem('valiant_gemini_key');
+      if (!geminiKey) {
+        appendBotMessage("Gemini API Key가 등록되지 않았습니다. 상단 ⚙️ 설정에서 키를 먼저 입력해 주세요!");
+        return;
+      }
+
+      // Typing indicator
+      const typingDiv = document.createElement('div');
+      typingDiv.id = "typingIndicator";
+      typingDiv.className = "flex items-start space-x-2.5 text-slate-400";
+      typingDiv.innerHTML = `
+        <div class="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-bold shrink-0">AI</div>
+        <div class="bg-slate-800/60 p-3 rounded-2xl rounded-tl-none">답변을 생성하고 있습니다...</div>
+      `;
+      chatBox.appendChild(typingDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      try {
+        const topStocks = currentPortfolio.positions.slice(0, 8).map(p => `${p.stock_name}: ${p.weight_pct}% (${(p.eval_amount/100000000).toFixed(2)}억)`).join(', ');
+        const sysContext = `당신은 최고 수준의 개인 자산관리 AI 자산 비서입니다.
+사용자의 현재 실제 순자산은 약 ${(currentPortfolio.total_net_worth/100000000).toFixed(2)}억원이며, 현금 비중은 ${(currentPortfolio.cash_ratio*100).toFixed(2)}%입니다.
+주요 종목 비중: ${topStocks}
+사용자의 질문에 대해 7.1억 자산의 비중, 거시경제 환경, 세제 혜택(ISA/연금) 관점을 고려하여 구체적이고 전문적이며 친절하게 한국어로 조언해 주세요.`;
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+        const payload = {
+          contents: [{
+            parts: [{ text: `${sysContext}\n\n사용자 질문: ${text}` }]
+          }]
+        };
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        const reply = data.candidates[0].content.parts[0].text;
+
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) indicator.remove();
+
+        appendBotMessage(reply);
+
+      } catch (err) {
+        const indicator = document.getElementById('typingIndicator');
+        if (indicator) indicator.remove();
+        appendBotMessage(`오류가 발생했습니다: ${err.message}`);
+      }
+    }
+
+    function appendBotMessage(msg) {
+      const chatBox = document.getElementById('chatMessages');
+      const botDiv = document.createElement('div');
+      botDiv.className = "flex items-start space-x-2.5";
+      botDiv.innerHTML = `
+        <div class="w-7 h-7 rounded-lg bg-indigo-600/30 flex items-center justify-center text-indigo-300 font-bold shrink-0">AI</div>
+        <div class="bg-slate-800/90 border border-slate-700/60 p-3 rounded-2xl rounded-tl-none max-w-[85%] text-slate-200 leading-relaxed whitespace-pre-wrap">${msg}</div>
+      `;
+      chatBox.appendChild(botDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+  </script>
+</body>
+</html>

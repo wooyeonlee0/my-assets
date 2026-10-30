@@ -1,0 +1,16 @@
+{
+  "name": "Valiant Portfolio - 내 자산관리",
+  "short_name": "자산관리",
+  "description": "더리치 스타일 서버리스 포트폴리오 자산관리 PWA",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230284c7'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='white'>💎</text></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

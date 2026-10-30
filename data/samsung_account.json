@@ -1,0 +1,23 @@
+{
+  "account_no": "240-123456-01",
+  "account_type": "GENERAL",
+  "deposit_cash": 800000.0,
+  "positions": [
+    {
+      "stock_code": "000660",
+      "stock_name": "SK하이닉스",
+      "quantity": 10,
+      "avg_buy_price": 170000,
+      "current_price": 185000,
+      "asset_class": "DOMESTIC_STOCK"
+    },
+    {
+      "stock_code": "035420",
+      "stock_name": "NAVER",
+      "quantity": 5,
+      "avg_buy_price": 185000,
+      "current_price": 175000,
+      "asset_class": "DOMESTIC_STOCK"
+    }
+  ]
+}
