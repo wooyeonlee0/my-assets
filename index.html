@@ -456,10 +456,32 @@
     let historyChartInstance = null;
     let tempParsedPositions = null;
 
+    function loadSavedPortfolioData() {
+      try {
+        const savedPortfolio = localStorage.getItem('valiant_current_portfolio');
+        if (savedPortfolio) {
+          const parsed = JSON.parse(savedPortfolio);
+          if (parsed && parsed.positions && parsed.positions.length > 0) {
+            currentPortfolio = parsed;
+          }
+        }
+        const savedHistory = localStorage.getItem('valiant_history_records');
+        if (savedHistory) {
+          const parsedH = JSON.parse(savedHistory);
+          if (Array.isArray(parsedH) && parsedH.length > 0) {
+            historyRecords = parsedH;
+          }
+        }
+      } catch (e) {
+        console.warn("포트폴리오 로컬 복원 건너뜀:", e);
+      }
+    }
+
     // -------------------------------------------------------------
     // 2. Initial Setup & Render
     // -------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
+      loadSavedPortfolioData();
       loadSettings();
       loadModelAndReasoningSettings();
       renderKPIs();
@@ -767,6 +789,10 @@
       throw new Error(lastErr || "사용 가능한 Gemini 모델을 찾을 수 없습니다.");
     }
 
+    function refreshAvailableModels() {
+      loadModelAndReasoningSettings();
+    }
+
     async function testGeminiKey() {
       const inputKey = document.getElementById('settingGeminiKey').value.trim();
       const statusEl = document.getElementById('geminiTestStatus');
@@ -787,7 +813,7 @@
         });
         statusEl.innerText = `✅ 연결 성공! (${result.model} 모델 정상 작동)`;
         statusEl.className = "text-[11px] mt-1.5 text-emerald-400 font-bold";
-        await refreshAvailableModels();
+        refreshAvailableModels();
       } catch (err) {
         statusEl.innerText = `❌ 연결 실패: ${err.message}`;
         statusEl.className = "text-[11px] mt-1.5 text-rose-400 font-medium";
@@ -808,7 +834,6 @@
       localStorage.setItem('valiant_gemini_key', gemini);
 
       loadSettings();
-      refreshAvailableModels();
       closeSettingsModal();
       alert('설정이 안전하게 브라우저 로컬 저장소에 저장되었습니다!');
     }
@@ -961,6 +986,12 @@
         cash_ratio: currentPortfolio.cash_ratio,
         note: "더리치 모바일 스크린샷 Gemini AI 자동 동기화"
       });
+
+      // LocalStorage 캐시 저장 (새로고침 시 유지)
+      try {
+        localStorage.setItem('valiant_current_portfolio', JSON.stringify(currentPortfolio));
+        localStorage.setItem('valiant_history_records', JSON.stringify(historyRecords));
+      } catch (e) {}
 
       renderKPIs();
       renderHoldingsTable();
