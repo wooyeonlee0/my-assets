@@ -5,11 +5,11 @@ Telegram AI Asset Assistant & Secure KIS Trading Bot
 - 1인 전용 화이트리스트 보안 기반 텔레그램 자산 관리 & 트레이딩 봇
 - 기능:
   1) Gemini AI 자산비서 자연어 대화 & 포트폴리오 리밸런싱 상담
-  2) AI 주문 제안 시 텔레그램 인라인 버튼(Inline Keyboard) 자동 생성
-  3) Human-in-the-Loop 명시적 승인 (버튼 클릭 없이는 절대 주문 불가)
-  4) 더블 클릭 방지 & Idempotency(멱등성) 보장
-  5) 시스템 레벨 Risk Guard (100주 하드 리밋, 0주/음수 차단)
-  6) 한국투자증권(KIS) GitHub Actions 서버리스 러너 트리거 & 체결 푸시 알림
+  2) 단일 종목 및 복합 배치(Basket / Rebalance) 인라인 버튼 자동 생성
+  3) 🔐 2차 보안 PIN 가상 키패드 인증 (3회 오류 시 주문 영구 파기)
+  4) Sell-First 정렬 & Rate Limit (0.5초) 보호 & 100주 하드 리밋
+  5) 텔레그램 미니앱(Telegram Mini App, TWA) 상시 메뉴 버튼 연동
+  6) 한국투자증권(KIS) GitHub Actions 서버리스 러너 트리거 & 체결 푸시
 """
 
 import os
@@ -32,37 +32,40 @@ logging.basicConfig(
 )
 logger = logging.getLogger("TelegramTradingBot")
 
-# Risk Guard 모듈 임포트
+# core 모듈 임포트
 try:
-    from scripts.kis_trade import validate_risk_guard
+    from core.trading_core import (
+        OrderItem,
+        BatchOrder,
+        validate_batch_risk_guard,
+        parse_order_payload,
+        format_batch_summary_html
+    )
 except ImportError:
-    # 패키지 또는 단독 실행 호환
-    try:
-        from kis_trade import validate_risk_guard
-    except ImportError:
-        def validate_risk_guard(ticker: str, qty: any, max_qty_limit: int = 100) -> tuple[bool, str, int]:
-            if not ticker or not str(ticker).strip():
-                return False, "종목 티커가 비어있습니다.", 0
-            try:
-                qty_int = int(qty)
-            except (ValueError, TypeError):
-                return False, f"수량 파라미터가 유효하지 않습니다: {qty}", 0
-            if qty_int <= 0:
-                return False, f"비정상적인 주문 수량입니다: {qty_int}주", 0
-            if qty_int > max_qty_limit:
-                return False, f"1회 최대 허용 수량({max_qty_limit}주)을 초과했습니다: {qty_int}주 요청됨", qty_int
-            return True, "", qty_int
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from core.trading_core import (
+        OrderItem,
+        BatchOrder,
+        validate_batch_risk_guard,
+        parse_order_payload,
+        format_batch_summary_html
+    )
 
-# 7.1억 포트폴리오 기준 데이터 (시스템 기본값)
+# 7.1억 포트폴리오 기준 데이터
 DEFAULT_PORTFOLIO_CONTEXT = """
 [현재 보유 포트폴리오 요약 (총 자산: 약 7.1억 원)]
 - 미국 주식: NVDA(28%), GOOGL(18%), TSLA(14%), AAPL(10%), MSFT(8%), AMZN(5%), CCL(3%), 기타(4%)
 - 국내 주식: 삼성전자(12%), 기타(6%)
-- 투자 성향: 안정적 장기 보유 및 성장주 분할 매수. 불필요한 단타 지양.
+- 투자 성향: 안정적 장기 보유 및 성장주 분할 리밸런싱. 불필요한 단타 지양.
 """
 
-ORDER_TAG_REGEX = re.compile(r":::kis_order\s*(?:```(?:json)?\s*)?(\{.*?\})(?:\s*```)?\s*:::", re.DOTALL)
-ORDER_TTL_SECONDS = 300 # 주문 인라인 버튼 유효 시간: 5분 (오래된 버튼 재클릭 방지)
+# 단건(kis_order) 및 배치(kis_batch) 태그 정규식
+ORDER_TAG_REGEX = re.compile(
+    r":::(?:kis_order|kis_batch)\s*(?:```(?:json)?\s*)?(\{.*?\})(?:\s*```)?\s*:::",
+    re.DOTALL
+)
+ORDER_TTL_SECONDS = 300 # 5분 유효시간
+WEBAPP_URL = "https://wooyeonlee0.github.io/my-assets/"
 
 
 class TelegramTradingBot:
@@ -77,7 +80,7 @@ class TelegramTradingBot:
         trading_pin: Optional[str] = None
     ):
         self.token = token or os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-        
+
         # 화이트리스트 사용자 ID 파싱
         allowed_env = os.getenv("TELEGRAM_ALLOWED_USERS") or os.getenv("TELEGRAM_CHAT_ID", "")
         if allowed_users is not None:
@@ -91,18 +94,16 @@ class TelegramTradingBot:
         self.github_pat = github_pat or os.getenv("GITHUB_PAT", "").strip()
         self.github_repo = github_repo
         self.max_qty_limit = int(os.getenv("MAX_ORDER_QTY", str(max_qty_limit)))
-        # 🔐 2차 보안 거래 PIN (기본값: 123456)
         self.trading_pin = str(trading_pin or os.getenv("TRADING_PIN", "123456")).strip()
 
-        # 인라인 버튼 주문 보관소 (order_id -> {ticker, qty, side, price, timestamp, executed: bool, pin_buffer: str, fail_attempts: int})
+        # 인라인 주문 보관소 (batch_id -> {batch: BatchOrder, created_at, executed, pin_buffer, fail_attempts})
         self.pending_orders: Dict[str, Dict[str, Any]] = {}
-
         self.base_url = f"https://api.telegram.org/bot{self.token}"
 
     def is_authorized(self, user_id: any) -> bool:
-        """화이트리스트 사용자 검증: 허용된 단 1명의 Telegram ID만 승인 (타입 안전 변환)"""
+        """화이트리스트 사용자 검증"""
         if not self.allowed_users:
-            logger.warning("⚠️ 화이트리스트가 설정되지 않았습니다. 보안을 위해 모든 요청을 거부합니다.")
+            logger.warning("⚠️ 화이트리스트가 설정되지 않았습니다. 모든 요청을 거부합니다.")
             return False
         try:
             return int(user_id) in self.allowed_users
@@ -139,12 +140,7 @@ class TelegramTradingBot:
         reply_markup: Optional[Dict[str, Any]] = None,
         parse_mode: str = "HTML"
     ) -> Dict[str, Any]:
-        """메시지 전송"""
-        payload: Dict[str, Any] = {
-            "chat_id": chat_id,
-            "text": text,
-            "parse_mode": parse_mode
-        }
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": parse_mode}
         if reply_markup:
             payload["reply_markup"] = reply_markup
         return self._call_telegram("sendMessage", payload)
@@ -155,11 +151,7 @@ class TelegramTradingBot:
         text: Optional[str] = None,
         show_alert: bool = False
     ) -> Dict[str, Any]:
-        """인라인 버튼 클릭 피드백 (모달 팝업 알림 지원)"""
-        payload = {
-            "callback_query_id": callback_query_id,
-            "show_alert": show_alert
-        }
+        payload = {"callback_query_id": callback_query_id, "show_alert": show_alert}
         if text:
             payload["text"] = text
         return self._call_telegram("answerCallbackQuery", payload)
@@ -170,11 +162,7 @@ class TelegramTradingBot:
         message_id: int,
         reply_markup: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """버튼 상태 갱신 (더블 클릭 방지 및 완료 표시)"""
-        payload: Dict[str, Any] = {
-            "chat_id": chat_id,
-            "message_id": message_id
-        }
+        payload = {"chat_id": chat_id, "message_id": message_id}
         if reply_markup:
             payload["reply_markup"] = reply_markup
         return self._call_telegram("editMessageReplyMarkup", payload)
@@ -187,33 +175,13 @@ class TelegramTradingBot:
         reply_markup: Optional[Dict[str, Any]] = None,
         parse_mode: str = "HTML"
     ) -> Dict[str, Any]:
-        """메시지 내용 수정"""
-        payload: Dict[str, Any] = {
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "text": text,
-            "parse_mode": parse_mode
-        }
+        payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": parse_mode}
         if reply_markup:
             payload["reply_markup"] = reply_markup
         return self._call_telegram("editMessageText", payload)
-        """화이트리스트 사용자 검증: 허용된 단 1명의 Telegram ID만 승인 (타입 안전 변환)"""
-        if not self.allowed_users:
-            logger.warning("⚠️ 화이트리스트가 설정되지 않았습니다. 보안을 위해 모든 요청을 거부합니다.")
-            return False
-        try:
-            return int(user_id) in self.allowed_users
-        except (ValueError, TypeError):
-            return False
 
-    def extract_order_from_text(self, text: str) -> Tuple[str, Optional[Dict[str, Any]]]:
-        """
-        AI 응답 본문에서 :::kis_order {...}::: 태그를 감지하고 분리.
-        - 백틱(`json ... `) 래핑 안전 제거
-        - 종목 티커 대문자화 및 공백 제거
-        - 수량 정수화 및 부동소수점 방어
-        반환: (클린 텍스트, 주문 딕셔너리 또는 None)
-        """
+    def extract_order_from_text(self, text: str) -> Tuple[str, Optional[BatchOrder]]:
+        """AI 응답 본문에서 단건/배치 주문 태그를 감지하고 표준 BatchOrder로 추출"""
         match = ORDER_TAG_REGEX.search(text)
         if not match:
             return text.strip(), None
@@ -221,58 +189,34 @@ class TelegramTradingBot:
         raw_json = match.group(1).strip()
         clean_text = ORDER_TAG_REGEX.sub("", text).strip()
 
-        try:
-            order_data = json.loads(raw_json)
-            # 필수 필드 검증
-            if "ticker" in order_data and "qty" in order_data:
-                ticker = str(order_data["ticker"]).strip().upper()
-                # 수량 형변환 (2.0 등 소수점 입력 대비)
-                qty_raw = order_data["qty"]
-                qty_int = int(float(qty_raw))
-                side = str(order_data.get("side", "BUY")).strip().upper()
-                if side not in ("BUY", "SELL"):
-                    side = "BUY"
-
-                return clean_text, {
-                    "ticker": ticker,
-                    "qty": qty_int,
-                    "side": side,
-                    "price": order_data.get("price", 0)
-                }
-        except Exception as e:
-            logger.warning(f"주문 JSON 파싱 실패: {e} | 내용: {raw_json}")
+        success, err, batch = parse_order_payload(raw_json)
+        if success and batch.orders:
+            return clean_text, batch
 
         return clean_text, None
 
     def call_gemini(self, user_prompt: str) -> str:
-        """Gemini AI API 호출 (포트폴리오 컨텍스트 주입)"""
+        """Gemini AI API 호출 (배치 리밸런싱 지원 프롬프트)"""
         if not self.gemini_api_key:
-            return "⚠️ Gemini API 키가 설정되지 않았습니다. 환경변수 GEMINI_API_KEY를 등록해주세요."
+            return "⚠️ Gemini API 키가 설정되지 않았습니다."
 
         system_instruction = (
             "너는 사용자의 7.1억 원 규모 실자산 포트폴리오를 관리하는 'AI 자산관리 비서'다. "
-            "친절하고 논리적으로 분석하되, 답변 끝에 주문을 제안할 때는 반드시 아래 형식의 숨김 태그를 포함해라:\n"
-            ":::kis_order {\"ticker\": \"종목코드\", \"qty\": 수량(정수), \"side\": \"BUY\"|\"SELL\", \"price\": 0}:::\n"
-            "(0은 시장가). 1회 수량은 절대 100주를 넘지 않도록 보수적으로 분할 제안해라."
+            "친절하고 논리적으로 분석하되, 주문을 제안할 때는 단일 종목이든 여러 종목 리밸런싱이든 "
+            "반드시 아래의 표준 배치 태그를 사용해라:\n"
+            ":::kis_batch {\"type\": \"REBALANCE|BUY|SELL\", \"orders\": [{\"ticker\": \"종목코드\", \"qty\": 수량(정수), \"side\": \"BUY\"|\"SELL\"}]}:::\n"
+            "종목당 1회 수량은 절대 100주를 넘지 마라."
         )
 
         full_prompt = f"{DEFAULT_PORTFOLIO_CONTEXT}\n\n[사용자 질문]: {user_prompt}"
 
-        # 모델 리스트 우선순위
         models = ["gemini-2.5-flash", "gemini-1.5-flash"]
         for model in models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_api_key}"
             payload = {
-                "contents": [
-                    {"role": "user", "parts": [{"text": full_prompt}]}
-                ],
-                "systemInstruction": {
-                    "parts": [{"text": system_instruction}]
-                },
-                "generationConfig": {
-                    "temperature": 0.3,
-                    "maxOutputTokens": 800
-                }
+                "contents": [{"role": "user", "parts": [{"text": full_prompt}]}],
+                "systemInstruction": {"parts": [{"text": system_instruction}]},
+                "generationConfig": {"temperature": 0.3, "maxOutputTokens": 800}
             }
             try:
                 req = urllib.request.Request(
@@ -291,121 +235,94 @@ class TelegramTradingBot:
                 logger.warning(f"모델 {model} 호출 실패: {e}")
                 continue
 
-        return "⚠️ Gemini AI 응답 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        return "⚠️ Gemini AI 응답 생성 중 오류가 발생했습니다."
 
-    def create_order_action_markup(self, order_data: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
-        """
-        주문 데이터로부터 고유 토큰을 발급하고 텔레그램 인라인 키보드 생성.
-        반환: (order_id, reply_markup)
-        """
-        order_id = str(uuid.uuid4())[:8] # 8자리 고유 키
+    def create_order_action_markup(self, batch_or_order: Any) -> Tuple[str, Dict[str, Any]]:
+        """표준 BatchOrder 등록 및 인라인 승인 키보드 생성"""
+        if isinstance(batch_or_order, BatchOrder):
+            batch = batch_or_order
+        else:
+            # 딕셔너리 호환
+            _, _, batch = parse_order_payload(batch_or_order)
+
+        order_id = batch.batch_id
         self.pending_orders[order_id] = {
-            **order_data,
+            "batch": batch,
             "created_at": time.time(),
             "executed": False,
             "pin_buffer": "",
             "fail_attempts": 0
         }
 
-        ticker = order_data.get("ticker", "").upper()
-        qty = order_data.get("qty", 1)
-        side = "매수" if order_data.get("side", "BUY") == "BUY" else "매도"
+        total_orders = len(batch.orders)
+        if total_orders == 1:
+            o = batch.orders[0]
+            side_ko = "매수" if o.side == "BUY" else "매도"
+            btn_text = f"🚀 {o.ticker} {o.qty}주 {side_ko} 승인 및 2차 PIN 인증"
+        else:
+            btn_text = f"🚀 배치 {total_orders}건 일괄 승인 및 2차 PIN 인증"
 
         reply_markup = {
             "inline_keyboard": [
-                [
-                    {
-                        "text": f"🚀 {ticker} {qty}주 {side} 승인 및 2차 인증",
-                        "callback_data": f"start_pin:{order_id}"
-                    }
-                ],
-                [
-                    {
-                        "text": "❌ 주문 취소",
-                        "callback_data": f"cancel_order:{order_id}"
-                    }
-                ]
+                [{"text": btn_text, "callback_data": f"start_pin:{order_id}"}],
+                [{"text": "❌ 주문 취소", "callback_data": f"cancel_order:{order_id}"}]
             ]
         }
         return order_id, reply_markup
 
     def render_pin_keypad(self, order_id: str) -> Tuple[str, Dict[str, Any]]:
-        """
-        🔐 2차 보안 PIN 입력 가상 키패드 렌더링
-        - 반환: (마스킹 안내 메시지, 인라인 키패드 마크업)
-        """
+        """🔐 2차 보안 PIN 입력 가상 키패드 렌더링"""
         order_info = self.pending_orders.get(order_id, {})
-        ticker = order_info.get("ticker", "")
-        qty = order_info.get("qty", 1)
-        side = "매수" if order_info.get("side", "BUY") == "BUY" else "매도"
+        batch: BatchOrder = order_info.get("batch")
         pin_buffer = order_info.get("pin_buffer", "")
         attempts = order_info.get("fail_attempts", 0)
 
-        # 6자리 마스킹 생성: ● (입력됨) / ○ (빈칸)
         masked_slots = " ".join(["●" if i < len(pin_buffer) else "○" for i in range(6)])
+        summary_title = f"{batch.orders[0].ticker} 외 {len(batch.orders)-1}건" if len(batch.orders) > 1 else f"{batch.orders[0].ticker} {batch.orders[0].qty}주"
 
         text = (
             f"🔐 <b>[한투 주문 2차 보안 PIN 인증]</b>\n\n"
-            f"• <b>종목/수량</b>: <code>{ticker}</code> {qty}주 {side}\n"
+            f"• <b>대상</b>: <code>{summary_title}</code> (총 {len(batch.orders)}건)\n"
             f"• <b>인증 상태</b>: [ {masked_slots} ]\n"
             f"• <b>남은 기회</b>: {3 - attempts}회\n\n"
             f"안전을 위해 <b>6자리 보안 PIN</b>을 키패드로 입력해주세요:"
         )
 
-        # 3x4 숫자 인라인 키패드
         keyboard = [
-            [
-                {"text": "1", "callback_data": f"pin:{order_id}:1"},
-                {"text": "2", "callback_data": f"pin:{order_id}:2"},
-                {"text": "3", "callback_data": f"pin:{order_id}:3"}
-            ],
-            [
-                {"text": "4", "callback_data": f"pin:{order_id}:4"},
-                {"text": "5", "callback_data": f"pin:{order_id}:5"},
-                {"text": "6", "callback_data": f"pin:{order_id}:6"}
-            ],
-            [
-                {"text": "7", "callback_data": f"pin:{order_id}:7"},
-                {"text": "8", "callback_data": f"pin:{order_id}:8"},
-                {"text": "9", "callback_data": f"pin:{order_id}:9"}
-            ],
-            [
-                {"text": "⌫", "callback_data": f"pin:{order_id}:back"},
-                {"text": "0", "callback_data": f"pin:{order_id}:0"},
-                {"text": "❌ 취소", "callback_data": f"cancel_order:{order_id}"}
-            ]
+            [{"text": "1", "callback_data": f"pin:{order_id}:1"}, {"text": "2", "callback_data": f"pin:{order_id}:2"}, {"text": "3", "callback_data": f"pin:{order_id}:3"}],
+            [{"text": "4", "callback_data": f"pin:{order_id}:4"}, {"text": "5", "callback_data": f"pin:{order_id}:5"}, {"text": "6", "callback_data": f"pin:{order_id}:6"}],
+            [{"text": "7", "callback_data": f"pin:{order_id}:7"}, {"text": "8", "callback_data": f"pin:{order_id}:8"}, {"text": "9", "callback_data": f"pin:{order_id}:9"}],
+            [{"text": "⌫", "callback_data": f"pin:{order_id}:back"}, {"text": "0", "callback_data": f"pin:{order_id}:0"}, {"text": "❌ 취소", "callback_data": f"cancel_order:{order_id}"}]
         ]
         return text, {"inline_keyboard": keyboard}
 
-    def trigger_kis_github_workflow(self, order_data: Dict[str, Any]) -> Tuple[bool, str]:
-        """
-        GitHub Actions 워크플로우를 트리거하여 KIS 서버리스 주문을 집행.
-        반환: (성공 여부, 메시지)
-        """
+    def trigger_kis_github_workflow(self, batch_or_dict: Any) -> Tuple[bool, str]:
+        """GitHub Actions 서버리스 러너를 트리거하여 KIS 주문을 집행"""
         if not self.github_pat:
-            return False, "GITHUB_PAT가 설정되지 않아 주문을 실행할 수 없습니다."
+            return False, "GITHUB_PAT가 설정되지 않았습니다."
 
-        ticker = str(order_data.get("ticker", "")).strip().upper()
-        qty = str(order_data.get("qty", 1)).strip()
-        side = str(order_data.get("side", "BUY")).strip().upper()
-        price = str(order_data.get("price", "0")).strip()
+        if isinstance(batch_or_dict, BatchOrder):
+            batch = batch_or_dict
+        else:
+            _, _, batch = parse_order_payload(batch_or_dict)
 
-        # 1. 시스템 레벨 Risk Guard 검증 (더블 체크)
-        is_valid, err_msg, qty_int = validate_risk_guard(ticker, qty, self.max_qty_limit)
+        # Risk Guard 및 Sell-First 순서 정렬 재검증
+        is_valid, err_msg, validated_batch = validate_batch_risk_guard(batch, max_single_qty=self.max_qty_limit)
         if not is_valid:
             logger.error(f"❌ [Risk Guard 차단] {err_msg}")
             return False, f"Risk Guard 차단: {err_msg}"
 
-        # 2. GitHub Actions workflow_dispatch 호출
         url = f"https://api.github.com/repos/{self.github_repo}/actions/workflows/kis_order.yml/dispatches"
         payload = {
             "ref": "master",
             "inputs": {
-                "ticker": ticker,
-                "qty": str(qty_int),
-                "order_type": side,
+                "batch_json": validated_batch.to_json(),
+                # 하위 호환성용 단건 파라미터 (첫 번째 주문 기준)
+                "ticker": validated_batch.orders[0].ticker,
+                "qty": str(validated_batch.orders[0].qty),
+                "order_type": validated_batch.orders[0].side,
                 "market": "AUTO",
-                "price": price
+                "price": validated_batch.orders[0].price
             }
         }
 
@@ -421,7 +338,7 @@ class TelegramTradingBot:
             )
             with urllib.request.urlopen(req, timeout=10) as res:
                 if res.status in (200, 204):
-                    return True, "GitHub Actions 서버리스 주문 러너가 성공적으로 트리거되었습니다."
+                    return True, "GitHub Actions 서버리스 주문 러너 가동 성공"
                 return False, f"GitHub HTTP Status: {res.status}"
         except urllib.error.HTTPError as e:
             err_msg = e.read().decode("utf-8") if e.fp else ""
@@ -431,8 +348,27 @@ class TelegramTradingBot:
             logger.error(f"GitHub Actions dispatch exception: {e}")
             return False, str(e)
 
+    def get_twa_main_keyboard(self) -> Dict[str, Any]:
+        """텔레그램 미니앱(Telegram Mini App, TWA) 상시 메뉴 버튼"""
+        return {
+            "keyboard": [
+                [
+                    {
+                        "text": "📱 7.1억 자산 대시보드 & 바스켓 열기",
+                        "web_app": {"url": WEBAPP_URL}
+                    }
+                ],
+                [
+                    {"text": "/portfolio"},
+                    {"text": "/status"}
+                ]
+            ],
+            "resize_keyboard": True,
+            "is_persistent": True
+        }
+
     def handle_message(self, message: Dict[str, Any]):
-        """일반 텍스트 메시지 및 명령어 처리"""
+        """일반 텍스트 및 AI 대화 처리"""
         user_info = message.get("from", {})
         user_id = user_info.get("id")
         chat_id = message.get("chat", {}).get("id")
@@ -440,29 +376,20 @@ class TelegramTradingBot:
 
         logger.info(f"수신 메시지 from {user_id} ({user_info.get('username')}): {text}")
 
-        # 🛡️ 1단계: 화이트리스트 검증 (비인가자 차단)
         if not self.is_authorized(user_id):
-            logger.warning(f"🚫 [차단] 비인가 사용자 접근 시도: User ID {user_id}")
-            self.send_message(
-                chat_id,
-                "⛔ <b>[접근 거부]</b> 인가되지 않은 사용자입니다.\n본 봇은 1인 전용 비공개 보안 봇으로 등록된 ID만 접근 가능합니다."
-            )
+            logger.warning(f"🚫 [차단] 비인가 사용자 접근: {user_id}")
+            self.send_message(chat_id, "⛔ <b>[접근 거부]</b> 1인 전용 비공개 봇입니다.")
             return
 
-        # 2단계: 내장 슬래시 명령어 처리
         if text.startswith("/start") or text.startswith("/help"):
             welcome_msg = (
                 "🤖 <b>[AI 자산관리 & KIS 주문 봇]</b>\n\n"
                 "• <b>내 포트폴리오 비중 상담</b>: 원하는 질문을 자유롭게 입력하세요.\n"
-                "  <i>예: 'NVDA 비중 분석해줘', '지금 구글 2주 살까?'</i>\n\n"
-                "• <b>주요 명령어</b>:\n"
-                "  /portfolio : 보유 종목 및 비중 요약\n"
-                "  /status : 봇 및 리스크 가드 상태 점검\n\n"
-                "🛡️ <b>안전 가드레일 작동 중</b>:\n"
-                f"• 1회 최대 주문 한도: <b>{self.max_qty_limit}주</b>\n"
-                "• 인라인 승인 버튼을 직접 누르지 않으면 1원도 주문되지 않습니다."
+                "  <i>예: 'NVDA 비중 줄이고 구글 채워줘', '월 적립식 매수 바스켓 짜줘'</i>\n\n"
+                "📱 <b>텔레그램 미니앱 연동</b>:\n"
+                "하단의 <b>[📱 7.1억 자산 대시보드 열기]</b> 버튼을 누르면 메신저 안에서 풀버전 차트와 바스켓을 바로 열 수 있습니다."
             )
-            self.send_message(chat_id, welcome_msg)
+            self.send_message(chat_id, welcome_msg, reply_markup=self.get_twa_main_keyboard())
             return
 
         if text.startswith("/portfolio") or text.startswith("/자산"):
@@ -471,13 +398,10 @@ class TelegramTradingBot:
                 f"📊 <b>[실자산 포트폴리오 비중 요약]</b>\n\n"
                 f"• <b>총 평가액</b>: 약 7.1억 원 (안정적 장기 보유)\n"
                 f"• <b>주요 종목 비중</b>:\n"
-                f"  - NVDA: 28% (AI 반도체 주도)\n"
-                f"  - GOOGL: 18% (빅테크 밸류에이션)\n"
-                f"  - TSLA: 14% (전기차/로보틱스)\n"
-                f"  - AAPL: 10% (현금흐름/생태계)\n"
-                f"  - 삼성전자: 12% (메모리 턴어라운드)\n"
-                f"  - 기타: MSFT, AMZN, CCL 등\n\n"
-                f"💡 <i>리밸런싱이나 추가 매수 상담은 자연어로 질문해주세요.</i>"
+                f"  - NVDA: 28% | GOOGL: 18% | TSLA: 14%\n"
+                f"  - AAPL: 10% | 삼성전자: 12% | 기타: 18%\n\n"
+                f"💡 <i>리밸런싱이나 바스켓 주문은 자연어로 말씀해주세요.</i>",
+                reply_markup=self.get_twa_main_keyboard()
             )
             return
 
@@ -486,41 +410,31 @@ class TelegramTradingBot:
                 chat_id,
                 f"⚙️ <b>[시스템 상태 보고]</b>\n\n"
                 f"• <b>인증 상태</b>: ✅ 인가됨 (User ID: {user_id})\n"
-                f"• <b>Risk Guard 한도</b>: 1회 최대 {self.max_qty_limit}주\n"
-                f"• <b>주문 집행 경로</b>: GitHub Actions ➔ KIS Open API 직통\n"
+                f"• <b>Risk Guard 한도</b>: 종목당 최대 {self.max_qty_limit}주\n"
+                f"• <b>파이프라인</b>: Sell-First 매도 우선 체결 보장\n"
                 f"• <b>대기 중인 주문 수</b>: {len([o for o in self.pending_orders.values() if not o.get('executed')])}건"
             )
             return
 
-        # 3단계: Gemini AI 자산비서 질의 & 주문 카드 생성
-        # 타이핑 중 액션 전송
+        # AI 질의응답
         self._call_telegram("sendChatAction", {"chat_id": chat_id, "action": "typing"})
-
         ai_response = self.call_gemini(text)
-        clean_text, order_data = self.extract_order_from_text(ai_response)
+        clean_text, batch = self.extract_order_from_text(ai_response)
 
-        if order_data:
-            order_id, reply_markup = self.create_order_action_markup(order_data)
-            ticker = order_data.get("ticker")
-            qty = order_data.get("qty")
-            side = "매수" if order_data.get("side") == "BUY" else "매도"
-
+        if batch:
+            order_id, reply_markup = self.create_order_action_markup(batch)
+            summary_html = format_batch_summary_html(batch)
             card_text = (
                 f"{clean_text}\n\n"
-                f"────────────────\n"
-                f"📋 <b>[한투 AI 주문 제안 확인]</b>\n"
-                f"• <b>종목</b>: <code>{ticker}</code>\n"
-                f"• <b>구분</b>: <b>{side}</b>\n"
-                f"• <b>수량</b>: <b>{qty}주</b> (시장가)\n"
-                f"• <b>안전 가드</b>: 100주 하드 리밋 검증 완료\n\n"
-                f"⚠️ <i>아래 [즉시 실행] 버튼을 눌러야만 증권사에 정식 주문이 발송됩니다.</i>"
+                f"{summary_html}\n\n"
+                f"⚠️ <i>아래 [일괄 승인] 버튼을 누르고 6자리 PIN을 입력해야 증권사로 정식 발송됩니다.</i>"
             )
             self.send_message(chat_id, card_text, reply_markup=reply_markup)
         else:
-            self.send_message(chat_id, clean_text)
+            self.send_message(chat_id, clean_text, reply_markup=self.get_twa_main_keyboard())
 
     def handle_callback_query(self, callback_query: Dict[str, Any]):
-        """인라인 키보드 클릭 이벤트 처리 (Human-in-the-Loop 명시적 승인)"""
+        """인라인 키보드 및 PIN 키패드 처리"""
         cb_id = callback_query.get("id")
         user_id = callback_query.get("from", {}).get("id")
         data = callback_query.get("data", "")
@@ -528,25 +442,18 @@ class TelegramTradingBot:
         chat_id = message.get("chat", {}).get("id")
         message_id = message.get("message_id")
 
-        # 🛡️ 1단계: 화이트리스트 사용자 검증
         if not self.is_authorized(user_id):
             self.answer_callback_query(cb_id, text="⛔ 인가되지 않은 사용자입니다.", show_alert=True)
             return
 
-        # 2단계: 주문 취소 액션
         if data.startswith("cancel_order:"):
             order_id = data.split(":")[1]
             if order_id in self.pending_orders:
                 self.pending_orders[order_id]["executed"] = True
             self.answer_callback_query(cb_id, text="주문이 취소되었습니다.")
-            self.edit_message_reply_markup(
-                chat_id,
-                message_id,
-                reply_markup={"inline_keyboard": [[{"text": "❌ [주문 취소됨]", "callback_data": "noop"}]]}
-            )
+            self.edit_message_reply_markup(chat_id, message_id, reply_markup={"inline_keyboard": [[{"text": "❌ [주문 취소됨]", "callback_data": "noop"}]]})
             return
 
-        # 3단계: 2차 보안 PIN 인증 시작
         if data.startswith("start_pin:") or data.startswith("confirm_order:"):
             order_id = data.split(":")[1]
             order_info = self.pending_orders.get(order_id)
@@ -555,45 +462,31 @@ class TelegramTradingBot:
                 self.answer_callback_query(cb_id, text="⚠️ 만료되었거나 존재하지 않는 주문입니다.", show_alert=True)
                 return
 
-            # 주문 유효기간 검증 (5분 초과 시 자동 만료)
-            created_at = order_info.get("created_at", 0)
-            if time.time() - created_at > ORDER_TTL_SECONDS:
-                self.answer_callback_query(cb_id, text="⚠️ 주문 유효 시간(5분)이 초과되어 만료되었습니다. 다시 요청해주세요.", show_alert=True)
-                self.edit_message_reply_markup(
-                    chat_id,
-                    message_id,
-                    reply_markup={"inline_keyboard": [[{"text": "⌛ [주문 만료됨]", "callback_data": "noop"}]]}
-                )
+            if time.time() - order_info.get("created_at", 0) > ORDER_TTL_SECONDS:
+                self.answer_callback_query(cb_id, text="⚠️ 5분이 초과되어 주문이 만료되었습니다.", show_alert=True)
+                self.edit_message_reply_markup(chat_id, message_id, reply_markup={"inline_keyboard": [[{"text": "⌛ [주문 만료됨]", "callback_data": "noop"}]]})
                 return
 
             if order_info.get("executed"):
                 self.answer_callback_query(cb_id, text="이미 처리된 주문입니다.", show_alert=False)
                 return
 
-            # 🔐 키패드 렌더링 및 PIN 입력 모드로 전환
             text, markup = self.render_pin_keypad(order_id)
             self.answer_callback_query(cb_id, text="🔐 6자리 보안 PIN을 입력해주세요.")
             self.edit_message_text(chat_id, message_id, text, reply_markup=markup)
             return
 
-        # 4단계: 키패드 터치 처리 (pin:{order_id}:{action})
         if data.startswith("pin:"):
             parts = data.split(":")
             if len(parts) < 3:
                 return
-            order_id = parts[1]
-            action = parts[2]
+            order_id, action = parts[1], parts[2]
             order_info = self.pending_orders.get(order_id)
 
-            if not order_info:
-                self.answer_callback_query(cb_id, text="⚠️ 만료되었거나 존재하지 않는 주문입니다.", show_alert=True)
+            if not order_info or order_info.get("executed"):
+                self.answer_callback_query(cb_id, text="이미 처리되었거나 유효하지 않은 주문입니다.", show_alert=False)
                 return
 
-            if order_info.get("executed"):
-                self.answer_callback_query(cb_id, text="이미 처리된 주문입니다.", show_alert=False)
-                return
-
-            # 백스페이스 처리
             if action == "back":
                 order_info["pin_buffer"] = order_info.get("pin_buffer", "")[:-1]
                 text, markup = self.render_pin_keypad(order_id)
@@ -601,114 +494,70 @@ class TelegramTradingBot:
                 self.edit_message_text(chat_id, message_id, text, reply_markup=markup)
                 return
 
-            # 숫자 누름 처리
             if action in "0123456789":
                 pin_buf = order_info.get("pin_buffer", "")
                 if len(pin_buf) < 6:
                     pin_buf += action
                     order_info["pin_buffer"] = pin_buf
 
-                # 아직 6자리 미만일 때: 마스킹 디스플레이만 갱신
                 if len(pin_buf) < 6:
                     self.answer_callback_query(cb_id)
                     text, markup = self.render_pin_keypad(order_id)
                     self.edit_message_text(chat_id, message_id, text, reply_markup=markup)
                     return
 
-                # 6자리 도달 시: 🔐 보안 PIN 검증
+                # 6자리 완성 시 검증
                 if pin_buf == self.trading_pin:
-                    # 🟢 PIN 일치: 주문 잠금 및 집행
                     order_info["executed"] = True
-                    ticker = order_info.get("ticker")
-                    qty = order_info.get("qty")
-                    side = "매수" if order_info.get("side") == "BUY" else "매도"
-
-                    self.answer_callback_query(
-                        cb_id,
-                        text=f"✅ PIN 인증 성공! {ticker} {qty}주 주문을 전송합니다.",
-                        show_alert=False
-                    )
-
+                    batch: BatchOrder = order_info["batch"]
+                    self.answer_callback_query(cb_id, text=f"✅ PIN 인증 성공! 총 {len(batch.orders)}건 주문을 전송합니다.")
                     self.edit_message_text(
                         chat_id,
                         message_id,
                         f"🔐 <b>[2차 보안 PIN 인증 완료]</b>\n\n"
-                        f"• <b>종목</b>: <code>{ticker}</code>\n"
-                        f"• <b>수량</b>: <b>{qty}주</b> {side}\n\n"
-                        f"⏳ 한투 서버로 주문을 전송하고 있습니다...",
+                        f"• <b>대상</b>: 총 {len(batch.orders)}건 (타입: {batch.batch_type})\n"
+                        f"⏳ 한투 서버리스 러너로 전송 중입니다...",
                         reply_markup={"inline_keyboard": [[{"text": "⏳ [한투 서버로 전송 중...]", "callback_data": "noop"}]]}
                     )
 
-                    # KIS GitHub Actions 트리거
-                    success, msg = self.trigger_kis_github_workflow(order_info)
-
+                    success, msg = self.trigger_kis_github_workflow(batch)
                     if success:
-                        logger.info(f"✅ PIN 인증 주문 성공: {ticker} {qty}주 {side}")
-                        self.edit_message_reply_markup(
-                            chat_id,
-                            message_id,
-                            reply_markup={"inline_keyboard": [[{"text": f"✅ [체결 요청 완료: {ticker} {qty}주]", "callback_data": "noop"}]]}
-                        )
+                        self.edit_message_reply_markup(chat_id, message_id, reply_markup={"inline_keyboard": [[{"text": f"✅ [배치 {len(batch.orders)}건 요청 완료]", "callback_data": "noop"}]]})
                         self.send_message(
                             chat_id,
-                            f"✅ <b>[한투 주문 발송 완료]</b>\n\n"
-                            f"• <b>종목</b>: <code>{ticker}</code>\n"
-                            f"• <b>구분</b>: <b>{side}</b>\n"
-                            f"• <b>수량</b>: <b>{qty}주</b>\n"
-                            f"• <b>인증</b>: 6자리 보안 PIN 통과\n"
-                            f"• <b>결과</b>: GitHub Actions 서버리스 주문 러너 가동\n\n"
-                            f"체결이 완료되면 텔레그램으로 최종 체결 통보가 발송됩니다."
+                            f"✅ <b>[한투 배치 주문 발송 완료]</b>\n\n"
+                            f"• <b>총 주문 건수</b>: <b>{len(batch.orders)}건</b>\n"
+                            f"• <b>파이프라인</b>: Sell-First 매도 우선 순차 체결\n"
+                            f"• <b>결과</b>: GitHub Actions 가동 시작\n\n"
+                            f"체결이 완료되면 텔레그램으로 최종 결과가 통보됩니다."
                         )
                     else:
-                        logger.error(f"❌ PIN 인증 주문 실패: {msg}")
-                        self.edit_message_reply_markup(
-                            chat_id,
-                            message_id,
-                            reply_markup={"inline_keyboard": [[{"text": f"❌ [주문 실패: {msg[:20]}]", "callback_data": "noop"}]]}
-                        )
-                        self.send_message(
-                            chat_id,
-                            f"❌ <b>[주문 전송 실패]</b>\n\n"
-                            f"• <b>사유</b>: {msg}\n"
-                            f"포트폴리오 자산에 아무런 변동이 발생하지 않았습니다."
-                        )
+                        self.edit_message_reply_markup(chat_id, message_id, reply_markup={"inline_keyboard": [[{"text": f"❌ [주문 실패: {msg[:20]}]", "callback_data": "noop"}]]})
+                        self.send_message(chat_id, f"❌ <b>[주문 전송 실패]</b>: {msg}")
                 else:
-                    # 🔴 PIN 불일치 처리
                     order_info["fail_attempts"] = order_info.get("fail_attempts", 0) + 1
-                    order_info["pin_buffer"] = "" # 버퍼 초기화
+                    order_info["pin_buffer"] = ""
                     attempts = order_info["fail_attempts"]
 
                     if attempts >= 3:
-                        # 3회 연속 실패: 주문 강제 파기
                         order_info["executed"] = True
-                        self.answer_callback_query(
-                            cb_id,
-                            text="⛔ 3회 연속 PIN 오류로 주문이 취소되었습니다.",
-                            show_alert=True
-                        )
+                        self.answer_callback_query(cb_id, text="⛔ 3회 연속 PIN 오류로 주문이 취소되었습니다.", show_alert=True)
                         self.edit_message_text(
                             chat_id,
                             message_id,
-                            "⛔ <b>[주문 강제 취소]</b>\n\n"
-                            "보안 PIN 3회 연속 불일치로 주문이 안전하게 파기되었습니다.\n"
-                            "자산 안전을 위해 다시 주문을 생성해주세요.",
+                            "⛔ <b>[주문 강제 취소]</b>\n3회 연속 보안 PIN 오류로 주문이 파기되었습니다.",
                             reply_markup={"inline_keyboard": [[{"text": "❌ [보안 잠금됨]", "callback_data": "noop"}]]}
                         )
                     else:
-                        self.answer_callback_query(
-                            cb_id,
-                            text=f"❌ PIN이 일치하지 않습니다. (남은 기회: {3 - attempts}회)",
-                            show_alert=True
-                        )
+                        self.answer_callback_query(cb_id, text=f"❌ PIN 불일치! (남은 기회: {3 - attempts}회)", show_alert=True)
                         text, markup = self.render_pin_keypad(order_id)
                         self.edit_message_text(chat_id, message_id, text, reply_markup=markup)
-            return
 
     def run_polling(self, interval: float = 1.0):
         """롱 폴링 메인 루프"""
-        logger.info("🤖 텔레그램 트레이딩 봇 롱 폴링 시작...")
+        logger.info("🤖 통합 트레이딩 코어 텔레그램 봇 가동 시작...")
         logger.info(f"🛡️ 인가된 사용자 ID: {self.allowed_users or '설정 안 됨'}")
-        logger.info(f"🛡️ 1회 최대 주문 한도: {self.max_qty_limit}주")
+        logger.info(f"🛡️ 종목당 최대 주문 한도: {self.max_qty_limit}주")
 
         offset = 0
         while True:
@@ -720,17 +569,15 @@ class TelegramTradingBot:
 
                 for update in updates_res.get("result", []):
                     offset = max(offset, update.get("update_id", 0) + 1)
-
                     if "message" in update:
                         self.handle_message(update["message"])
                     elif "callback_query" in update:
                         self.handle_callback_query(update["callback_query"])
-
             except KeyboardInterrupt:
-                logger.info("봇 종료 신호 수신. 안전하게 종료합니다.")
+                logger.info("봇 종료 신호 수신. 안전 종료합니다.")
                 break
             except Exception as e:
-                logger.error(f"Polling loop unexpected exception: {e}")
+                logger.error(f"Polling loop exception: {e}")
                 time.sleep(interval)
 
 

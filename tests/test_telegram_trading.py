@@ -123,7 +123,7 @@ class TestOrderParsingAndExecution(unittest.TestCase):
         self.assertEqual(order_data["ticker"], "NVDA")
         self.assertEqual(order_data["qty"], 2)
         self.assertEqual(order_data["side"], "BUY")
-        self.assertEqual(order_data["price"], 0)
+        self.assertEqual(int(order_data["price"]), 0)
         self.assertNotIn(":::kis_order", clean_text)
         self.assertIn("NVDA의 현재 포트폴리오", clean_text)
 
@@ -155,7 +155,7 @@ class TestOrderParsingAndExecution(unittest.TestCase):
         # 인라인 버튼 구조 검증
         buttons = markup["inline_keyboard"]
         self.assertEqual(len(buttons), 2)
-        self.assertIn("GOOGL 3주 매수 승인 및 2차 인증", buttons[0][0]["text"])
+        self.assertIn("GOOGL 3주 매수 승인 및 2차 PIN 인증", buttons[0][0]["text"])
         self.assertEqual(buttons[0][0]["callback_data"], f"start_pin:{order_id}")
         self.assertEqual(buttons[1][0]["callback_data"], f"cancel_order:{order_id}")
 
