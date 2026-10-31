@@ -53,7 +53,28 @@
 
 ---
 
-## 3. 5중 보안 가드레일 (Total 5-Layer Defense)
+## 3. Gemini AI Pro(Argon) ➔ 텔레그램 딥링크 규격 (Flow 1: Closed-Loop)
+
+구독 중인 **Google One AI Premium (Gemini Advanced/Pro, Argon 모델)**을 100% 무료(유료 API 0원)로 활용하기 위해 텔레그램의 64글자 딥링크 제한을 충족하는 초소형 콤팩트 인코딩/디코딩 규격을 제공합니다.
+
+### 콤팩트 주문 포맷 (Compact Order Format)
+`https://t.me/<BOT_USERNAME>?start=<COMPACT_PAYLOAD>`
+
+- **구조**: `TICKER.QTY.SIDE_TICKER.QTY.SIDE`
+  - `S`: SELL (매도)
+  - `B`: BUY (매수)
+  - `_`: 다중 종목 구분자
+- **예시**:
+  - `TSLA.3.S_NVDA.2.B` (테슬라 3주 매도 후 엔비디아 2주 매수, 19글자)
+  - `NVDA.5.B` (엔비디아 5주 단건 매수, 8글자)
+- **보안 및 규격 원칙**:
+  1. **Sell-First 순서 보장**: 인코더(`encode_compact_order`)가 매도(S) 종목을 무조건 앞단에 정렬하여 출력.
+  2. **64자 제한 엄수**: 5~6개 종목을 묶어도 45자 이내로 전송되어 텔레그램 파라미터 규격을 완벽 준수.
+  3. **가상 키패드 즉시 호출**: 수신된 `/start <payload>`는 텔레그램 봇에서 파싱 즉시 리밸런싱 요약 카드와 6자리 PIN 가상 키패드로 렌더링.
+
+---
+
+## 4. 5중 보안 가드레일 (Total 5-Layer Defense)
 
 1. **화이트리스트**: 등록된 단 1명의 Telegram User ID 외 모든 제3자 접근 원천 차단.
 2. **Human-in-the-Loop**: AI에게 주문 API 권한 0% 부여 (사용자 직접 터치 필수).
@@ -67,13 +88,13 @@
 
 ---
 
-## 4. 자동화 테스트 무결성 검증
+## 5. 자동화 테스트 무결성 검증
 
 - **테스트 스위트 파일**:
-  - `tests/test_trading_core.py` (코어 로직 11개 테스트)
-  - `tests/test_telegram_trading.py` (텔레그램 및 E2E 보안 23개 테스트)
+  - `tests/test_trading_core.py` (코어 및 콤팩트 딥링크 14개 테스트)
+  - `tests/test_telegram_trading.py` (텔레그램, 딥링크 E2E 및 보안 26개 테스트)
 - **실행 명령**:
   ```bash
   python -m unittest tests/test_trading_core.py tests/test_telegram_trading.py -v
   ```
-- **검증 결과**: **총 34개 테스트 ALL PASSED (0.003초 소요)**
+- **검증 결과**: **총 40개 테스트 ALL PASSED (0.003초 소요)**

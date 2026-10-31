@@ -402,6 +402,79 @@ class TestEndToEndSimulation(unittest.TestCase):
             except Exception as e:
                 self.fail(f"크래시 발생: {e}")
 
+    def test_deeplink_start_command_creates_order_card(self):
+        """텔레그램 딥링크(/start NVDA.3.S_GOOGL.2.B) 수신 시 즉시 요약 카드 및 PIN 발급 검증"""
+        self.bot.handle_message({
+            "from": {"id": 9999, "username": "wooyeon"},
+            "chat": {"id": 9999},
+            "text": "/start NVDA.3.S_GOOGL.2.B"
+        })
+
+        self.assertEqual(len(self.bot.pending_orders), 1)
+        order_id = list(self.bot.pending_orders.keys())[0]
+        pending = self.bot.pending_orders[order_id]
+        self.assertEqual(len(pending["orders"]), 2)
+        # Sell-First 검증
+        self.assertEqual(pending["orders"][0]["ticker"], "NVDA")
+        self.assertEqual(pending["orders"][0]["side"], "SELL")
+        self.assertEqual(pending["orders"][1]["ticker"], "GOOGL")
+        self.assertEqual(pending["orders"][1]["side"], "BUY")
+
+        # 전송된 메시지 검증
+        last_msg = self.sent_messages[-1]
+        self.assertIn("Gemini AI Pro(Argon) 딥링크 주문 감지", last_msg["text"])
+        self.assertIn("NVDA", last_msg["text"])
+        self.assertIn("GOOGL", last_msg["text"])
+        self.assertIn("markup", last_msg)
+        self.assertIsNotNone(last_msg["markup"])
+
+    def test_deeplink_e2e_full_pin_execution(self):
+        """딥링크 수신 ➔ 키패드 오픈 ➔ 6자리 PIN 입력 ➔ KIS 배치 체결 E2E 검증"""
+        # 1. 딥링크 전달
+        self.bot.handle_message({
+            "from": {"id": 9999, "username": "wooyeon"},
+            "chat": {"id": 9999},
+            "text": "/start TSLA.2.S_AAPL.1.B"
+        })
+        order_id = list(self.bot.pending_orders.keys())[0]
+
+        # 2. [일괄 승인 및 2차 PIN 입력] 버튼 터치
+        self.bot.handle_callback_query({
+            "id": "cb_start_pin",
+            "from": {"id": 9999},
+            "data": f"start_pin:{order_id}",
+            "message": {"chat": {"id": 9999}, "message_id": 201}
+        })
+
+        # 3. 6자리 PIN (123456) 순차 터치
+        for digit in "123456":
+            self.bot.handle_callback_query({
+                "id": f"cb_pin_{digit}",
+                "from": {"id": 9999},
+                "data": f"pin:{order_id}:{digit}",
+                "message": {"chat": {"id": 9999}, "message_id": 201}
+            })
+
+        # 4. KIS 주문 체결 확인
+        self.assertEqual(len(self.triggered_orders), 1)
+        executed_batch = self.triggered_orders[0]
+        self.assertEqual(len(executed_batch["orders"]), 2)
+        self.assertEqual(executed_batch["orders"][0]["ticker"], "TSLA")
+        self.assertEqual(executed_batch["orders"][0]["side"], "SELL")
+        self.assertEqual(executed_batch["orders"][1]["ticker"], "AAPL")
+        self.assertEqual(executed_batch["orders"][1]["side"], "BUY")
+        self.assertTrue(self.bot.pending_orders[order_id]["executed"])
+
+    def test_deeplink_unauthorized_user_blocked(self):
+        """비인가 사용자의 딥링크 접속 원천 차단 검증"""
+        self.bot.handle_message({
+            "from": {"id": 8888, "username": "intruder"},
+            "chat": {"id": 8888},
+            "text": "/start NVDA.5.B"
+        })
+        self.assertEqual(len(self.bot.pending_orders), 0)
+        self.assertIn("접근 거부", self.sent_messages[-1]["text"])
+
 
 if __name__ == "__main__":
     unittest.main()

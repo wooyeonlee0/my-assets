@@ -51,6 +51,15 @@ class OrderItem:
             "market": self.market
         }
 
+    def __getitem__(self, item: str) -> Any:
+        return getattr(self, item)
+
+    def get(self, item: str, default: Any = None) -> Any:
+        return getattr(self, item, default)
+
+    def __contains__(self, item: str) -> bool:
+        return hasattr(self, item)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OrderItem":
         qty_raw = data.get("qty", 1)
@@ -192,15 +201,22 @@ def parse_order_payload(payload_raw: Any) -> Tuple[bool, str, BatchOrder]:
     """
     try:
         if isinstance(payload_raw, str):
-            payload_raw = json.loads(payload_raw.strip())
+            payload_str = payload_raw.strip()
+            # 1) 콤팩트 딥링크 포맷 검사 (예: NVDA.3.S_GOOGL.2.B)
+            if "." in payload_str and not payload_str.startswith("{"):
+                compact_batch = decode_compact_order(payload_str)
+                if compact_batch and compact_batch.orders:
+                    return True, "", compact_batch
+
+            payload_raw = json.loads(payload_str)
 
         if isinstance(payload_raw, dict):
-            # 1) 배치 형식인 경우 (orders 필드 존재)
+            # 2) 배치 형식인 경우 (orders 필드 존재)
             if "orders" in payload_raw and isinstance(payload_raw["orders"], list):
                 batch = BatchOrder.from_dict(payload_raw)
                 return True, "", batch
 
-            # 2) 단일 주문 객체인 경우 (ticker 필드 존재)
+            # 3) 단일 주문 객체인 경우 (ticker 필드 존재)
             if "ticker" in payload_raw:
                 single_item = OrderItem.from_dict(payload_raw)
                 batch = BatchOrder(orders=[single_item])
@@ -209,6 +225,55 @@ def parse_order_payload(payload_raw: Any) -> Tuple[bool, str, BatchOrder]:
         return False, "유효한 주문 형식이 아닙니다.", BatchOrder(orders=[])
     except Exception as e:
         return False, f"페이로드 파싱 실패: {e}", BatchOrder(orders=[])
+
+
+def encode_compact_order(batch: BatchOrder) -> str:
+    """
+    텔레그램 64자 start 파라미터 규격에 맞춘 초소형 콤팩트 딥링크 인코더
+    형식: TICKER.QTY.SIDE_TICKER.QTY.SIDE (예: NVDA.3.S_GOOGL.2.B)
+    Sell-First 매도 우선 정렬 보장
+    """
+    batch.sort_sell_first()
+    tokens = []
+    for o in batch.orders:
+        side_char = "S" if o.side == "SELL" else "B"
+        tokens.append(f"{o.ticker}.{o.qty}.{side_char}")
+    return "_".join(tokens)
+
+
+def decode_compact_order(compact_str: str) -> Optional[BatchOrder]:
+    """
+    초소형 콤팩트 문자열(NVDA.3.S_GOOGL.2.B)을 표준 BatchOrder로 디코딩
+    """
+    if not compact_str or not isinstance(compact_str, str):
+        return None
+
+    cleaned = compact_str.strip().lstrip("/start").strip()
+    if not cleaned:
+        return None
+
+    parts = cleaned.split("_")
+    orders = []
+
+    for part in parts:
+        sub = part.split(".")
+        if len(sub) >= 3:
+            ticker = sub[0].strip().upper()
+            try:
+                qty = int(sub[1])
+            except ValueError:
+                continue
+            side_code = sub[2].strip().upper()
+            side = "SELL" if side_code.startswith("S") else "BUY"
+            if ticker and qty > 0:
+                orders.append(OrderItem(ticker=ticker, qty=qty, side=side))
+
+    if not orders:
+        return None
+
+    batch = BatchOrder(orders=orders)
+    batch.sort_sell_first()
+    return batch
 
 
 def format_batch_summary_html(batch: BatchOrder) -> str:

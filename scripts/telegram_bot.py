@@ -249,6 +249,7 @@ class TelegramTradingBot:
         order_id = batch.batch_id
         self.pending_orders[order_id] = {
             "batch": batch,
+            "orders": batch.orders,
             "created_at": time.time(),
             "executed": False,
             "pin_buffer": "",
@@ -381,6 +382,21 @@ class TelegramTradingBot:
             logger.warning(f"🚫 [차단] 비인가 사용자 접근: {user_id}")
             self.send_message(chat_id, "⛔ <b>[접근 거부]</b> 1인 전용 비공개 봇입니다.")
             return
+
+        # 2단계: 텔레그램 딥링크 주문 수신 (/start NVDA.3.S_GOOGL.2.B 등)
+        if text.startswith("/start "):
+            deeplink_param = text[7:].strip()
+            success, _, batch = parse_order_payload(deeplink_param)
+            if success and batch.orders:
+                order_id, reply_markup = self.create_order_action_markup(batch)
+                summary_html = format_batch_summary_html(batch)
+                card_text = (
+                    f"✨ <b>[Gemini AI Pro(Argon) 딥링크 주문 감지]</b>\n\n"
+                    f"{summary_html}\n\n"
+                    f"🔒 <b>안전 확인</b>: 아래 버튼을 터치하고 6자리 보안 PIN을 입력하면 한투 서버로 주문이 집행됩니다."
+                )
+                self.send_message(chat_id, card_text, reply_markup=reply_markup)
+                return
 
         if text.startswith("/start") or text.startswith("/help"):
             welcome_msg = (

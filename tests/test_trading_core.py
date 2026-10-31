@@ -20,7 +20,9 @@ from core.trading_core import (
     BatchOrder,
     validate_batch_risk_guard,
     parse_order_payload,
-    format_batch_summary_html
+    format_batch_summary_html,
+    encode_compact_order,
+    decode_compact_order
 )
 
 
@@ -180,6 +182,55 @@ class TestUnifiedTradingCore(unittest.TestCase):
         restored_batch = BatchOrder.from_json(json_str)
         self.assertEqual(len(restored_batch.orders), 1)
         self.assertEqual(restored_batch.orders[0].ticker, "TSLA")
+
+    def test_encode_compact_order(self):
+        """텔레그램 64자 제한을 만족하는 초소형 딥링크 인코딩 검증"""
+        # 1) 단건 인코딩
+        single = BatchOrder(orders=[OrderItem("NVDA", 3, "SELL")])
+        self.assertEqual(encode_compact_order(single), "NVDA.3.S")
+
+        # 2) 혼합 리밸런싱 인코딩 (Sell-First 자동 정렬 확인)
+        rebalance = BatchOrder(orders=[
+            OrderItem("NVDA", 2, "BUY"),
+            OrderItem("TSLA", 5, "SELL")
+        ])
+        encoded = encode_compact_order(rebalance)
+        self.assertEqual(encoded, "TSLA.5.S_NVDA.2.B")
+        self.assertLessEqual(len(encoded), 64)
+
+    def test_decode_compact_order_and_payload_parser(self):
+        """초소형 딥링크 디코딩 및 단일 파서(parse_order_payload) 연동 검증"""
+        compact_str = "NVDA.3.S_GOOGL.2.B"
+        batch = decode_compact_order(compact_str)
+        self.assertIsNotNone(batch)
+        self.assertEqual(len(batch.orders), 2)
+        self.assertEqual(batch.orders[0].ticker, "NVDA")
+        self.assertEqual(batch.orders[0].side, "SELL")
+        self.assertEqual(batch.orders[0].qty, 3)
+        self.assertEqual(batch.orders[1].ticker, "GOOGL")
+        self.assertEqual(batch.orders[1].side, "BUY")
+        self.assertEqual(batch.orders[1].qty, 2)
+        self.assertEqual(batch.batch_type, "REBALANCE")
+
+        # parse_order_payload 직접 지원 검증
+        ok, msg, parsed_batch = parse_order_payload(compact_str)
+        self.assertTrue(ok)
+        self.assertEqual(len(parsed_batch.orders), 2)
+
+        # /start 접두어 포함 시 자동 클리닝 검증
+        batch_with_prefix = decode_compact_order("/start TSLA.1.B")
+        self.assertIsNotNone(batch_with_prefix)
+        self.assertEqual(batch_with_prefix.orders[0].ticker, "TSLA")
+        self.assertEqual(batch_with_prefix.orders[0].side, "BUY")
+
+    def test_decode_compact_order_edge_cases(self):
+        """비정상/빈 문자열/오류 토큰 방어 검증"""
+        self.assertIsNone(decode_compact_order(""))
+        self.assertIsNone(decode_compact_order(None))
+        self.assertIsNone(decode_compact_order("invalid_format_without_dots"))
+        self.assertIsNone(decode_compact_order("NVDA.notanumber.B"))
+        self.assertIsNone(decode_compact_order("NVDA.0.B"))  # 0주는 무효
+        self.assertIsNone(decode_compact_order("NVDA.-3.B")) # 음수 무효
 
 
 if __name__ == "__main__":

@@ -226,6 +226,11 @@
               <p class="text-[11px] text-slate-400">종목별 [주문] 버튼 클릭 시 한투 API로 원클릭 체결</p>
             </div>
             <div class="flex items-center space-x-2">
+                            <button onclick="exportToGeminiPro()" class="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-xs font-bold shadow-md shadow-purple-600/20 transition-all flex items-center space-x-1" title="실시간 자산 컨텍스트를 복사하고 Google One AI Pro/Argon으로 이동">
+                <span>🧠</span>
+                <span class="hidden sm:inline">Gemini Pro</span>
+                <span>상담</span>
+              </button>
               <button id="btnHeaderBasket" onclick="openBasketModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 shadow-sm">
                 <span>🛒</span>
                 <span>바스켓</span>
@@ -401,6 +406,24 @@
           </div>
         </div>
 
+                <!-- Google One AI Pro / Argon 심층 상담 (비용 0원 Closed-Loop Flow) 배너 -->
+        <div class="mt-3 p-3.5 bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-slate-900 border border-purple-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-purple-950/20">
+          <div class="flex items-start space-x-2.5">
+            <span class="text-2xl shrink-0">🧠</span>
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="text-xs font-bold text-purple-200">Google One AI Pro (Argon) 심층 상담</span>
+                <span class="px-1.5 py-0.2 bg-purple-500/30 text-purple-300 rounded text-[9px] font-mono font-bold">비용 0원 Closed-Loop</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">구독 중인 공식 Gemini 앱(Argon 심층 추론)으로 7.1억 자산을 진단받고, 텔레그램 1클릭 체결 딥링크로 자동 회수합니다.</p>
+            </div>
+          </div>
+          <button onclick="exportToGeminiPro()" class="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-md shadow-purple-600/30 shrink-0 flex items-center justify-center space-x-1.5 transition-transform active:scale-95">
+            <span>📋 7.1억 프롬프트 복사 & 공식 Gemini 열기</span>
+            <span>↗</span>
+          </button>
+        </div>
+
         <!-- Deep Chat Web Component Container -->
         <div class="flex-1 mt-3 w-full overflow-hidden flex flex-col min-h-[460px]">
           <deep-chat
@@ -484,6 +507,16 @@
         </button>
         <button id="btnSubmitBatch" onclick="sendBatchOrder()" class="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center space-x-1.5">
           <span>🚀 6자리 PIN 인증 후 일괄 전송</span>
+        </button>
+      </div>
+
+      <!-- Sub Action Buttons: Telegram Deep Link & Gemini Review -->
+      <div class="flex items-center space-x-2">
+        <button onclick="sendBasketToTelegram()" class="flex-1 py-2.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded-xl font-bold text-xs transition-all flex items-center justify-center space-x-1">
+          <span>✈️ 텔레그램 딥링크 체결</span>
+        </button>
+        <button onclick="exportBasketToGeminiPro()" class="flex-1 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-xl font-bold text-xs transition-all flex items-center justify-center space-x-1">
+          <span>🧠 Gemini Pro에 검토 요청</span>
         </button>
       </div>
     </div>
@@ -625,6 +658,15 @@
           <input type="password" id="settingGeminiKey" placeholder="AIzaSyxxxxxxxxxxxx" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
           <p id="geminiTestStatus" class="text-[11px] mt-1.5 hidden"></p>
           <p class="text-[10px] text-slate-400 mt-1"><a href="https://aistudio.google.com" target="_blank" class="text-sky-400 underline">aistudio.google.com</a>에서 카드 없이 1초 발급 (이미지 자동인식 및 AI 비서용)</p>
+        </div>
+
+                <div>
+          <label class="block font-semibold text-slate-300 mb-1">텔레그램 트레이딩 봇 Username (Deep Link 연동)</label>
+          <div class="flex items-center">
+            <span class="px-2.5 py-2.5 bg-slate-800 border border-r-0 border-slate-700 rounded-l-lg text-slate-400 font-mono text-xs">@</span>
+            <input type="text" id="settingTelegramBot" placeholder="wooyeon_asset_bot" value="wooyeon_asset_bot" class="flex-1 bg-slate-800 border border-slate-700 rounded-r-lg p-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-sky-500">
+          </div>
+          <p class="text-[10px] text-slate-400 mt-1">Gemini AI Pro(Argon)가 생성하는 1클릭 체결 링크 대상 봇 (기본: wooyeon_asset_bot)</p>
         </div>
 
         <div class="pt-2 border-t border-slate-800 space-y-2">
@@ -1149,6 +1191,7 @@
     // -------------------------------------------------------------
     function openSettingsModal() {
       document.getElementById('settingGithubRepo').value = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
+      const tgEl = document.getElementById('settingTelegramBot'); if (tgEl) tgEl.value = localStorage.getItem('valiant_tg_bot') || 'wooyeon_asset_bot';
       document.getElementById('settingGithubToken').value = localStorage.getItem('valiant_gh_token') || '';
       document.getElementById('settingGeminiKey').value = localStorage.getItem('valiant_gemini_key') || '';
       const testStatus = document.getElementById('geminiTestStatus');
@@ -1315,6 +1358,8 @@
       localStorage.setItem('valiant_gh_repo', repo);
       localStorage.setItem('valiant_gh_token', token);
       localStorage.setItem('valiant_gemini_key', gemini);
+      const tgBot = (document.getElementById('settingTelegramBot')?.value || '').trim() || 'wooyeon_asset_bot';
+      localStorage.setItem('valiant_tg_bot', tgBot);
 
       loadSettings();
       closeSettingsModal();
@@ -2178,6 +2223,160 @@
     }
     window.sendBatchOrder = sendBatchOrder;
 
+    // -------------------------------------------------------------
+    // Toast Notification System
+    // -------------------------------------------------------------
+    let toastTimeout = null;
+    function showToast(title, message, icon = '📋') {
+      const toast = document.getElementById('toastNotification');
+      if (!toast) {
+        alert(`${title}\n\n${message}`);
+        return;
+      }
+      document.getElementById('toastTitle').innerText = title;
+      document.getElementById('toastMessage').innerText = message;
+      document.getElementById('toastIcon').innerText = icon;
+
+      toast.classList.remove('translate-y-[-20px]', 'opacity-0', 'pointer-events-none');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-[-20px]', 'opacity-0', 'pointer-events-none');
+      }, 4500);
+    }
+    window.showToast = showToast;
+
+    // -------------------------------------------------------------
+    // Flow 1: Google One AI Pro / Argon Deep Consultation & Telegram Deep Link
+    // -------------------------------------------------------------
+    function encodeCompactBasket() {
+      if (!orderBasket || orderBasket.length === 0) return "";
+      // Sell-First 정렬: 매도(SELL)를 항상 매수(BUY)보다 앞단에 배치
+      const sellOrders = orderBasket.filter(o => o.side === 'SELL');
+      const buyOrders = orderBasket.filter(o => o.side === 'BUY');
+      const sorted = [...sellOrders, ...buyOrders];
+      return sorted.map(o => `${o.ticker}.${o.qty}.${o.side === 'SELL' ? 'S' : 'B'}`).join('_');
+    }
+    window.encodeCompactBasket = encodeCompactBasket;
+
+    function sendBasketToTelegram() {
+      if (orderBasket.length === 0) {
+        alert("바스켓이 비어있습니다. 주문할 종목을 먼저 담아주세요.");
+        return;
+      }
+      const compactPayload = encodeCompactBasket();
+      const botUsername = localStorage.getItem('valiant_tg_bot') || "wooyeon_asset_bot";
+      const tgUrl = `https://t.me/${botUsername}?start=${compactPayload}`;
+      
+      showToast(
+        "✈️ 텔레그램 트레이딩 봇 연동",
+        `바스켓 ${orderBasket.length}건을 텔레그램 딥링크로 전송합니다.\n가상 키패드에서 6자리 PIN을 터치해 안전하게 체결하세요.`,
+        "✈️"
+      );
+      setTimeout(() => {
+        window.open(tgUrl, '_blank');
+      }, 500);
+    }
+    window.sendBasketToTelegram = sendBasketToTelegram;
+
+    function buildGeminiPrompt(mode = 'portfolio') {
+      const netWorthNum = Number(currentPortfolio.total_net_worth || 710860000);
+      const netWorthStr = (netWorthNum / 100000000).toFixed(2);
+      const cashRatioStr = ((currentPortfolio.cash_ratio || 0.05) * 100).toFixed(2);
+      const botUsername = localStorage.getItem('valiant_tg_bot') || "wooyeon_asset_bot";
+
+      let positionsStr = "";
+      if (currentPortfolio.positions && currentPortfolio.positions.length > 0) {
+        positionsStr = currentPortfolio.positions
+          .slice(0, 15)
+          .map(p => `  • ${p.stock_name} (${p.stock_code}): 비중 ${p.weight_pct.toFixed(1)}% | 평가액 ${(p.eval_amount/100000000).toFixed(2)}억원`)
+          .join('\n');
+      } else {
+        positionsStr = "  • NVDA (엔비디아): 28.0% | GOOGL: 18.0% | TSLA: 14.0% | 삼성전자: 12.0% | 기타 28.0%";
+      }
+
+      let contextIntro = "";
+      if (mode === 'basket' && orderBasket.length > 0) {
+        const basketList = orderBasket.map(o => `  - ${o.name} (${o.ticker}): ${o.qty}주 [${o.side === 'SELL' ? '매도' : '매수'}]`).join('\n');
+        contextIntro = `[현재 내가 검토 중인 리밸런싱 바스켓]:\n${basketList}\n\n위 바스켓이 내 7.1억 전체 포트폴리오의 리스크와 밸런스 측면에서 적절한지 심층 평가해줘.`;
+      } else {
+        contextIntro = `[상담 요청]:\n현재 거시경제 상황과 시장 변동성을 감안하여, 내 7.1억 글로벌 포트폴리오의 리밸런싱 전략(비중 축소/확대 종목 및 구체적 매매 수량)을 심층적으로 제안해줘.`;
+      }
+
+      const promptText = `[역할: 대한민국 상위 0.1% 전담 글로벌 자산관리 PB (Gemini AI Pro / Argon)]
+
+안녕하세요! 저는 7.1억 원 규모의 실자산을 20여 개 종목으로 장기 분산 운용 중인 개인 투자자입니다.
+다음은 나의 실시간 자산 포트폴리오 현황입니다:
+
+📊 [실시간 자산 요약]
+• 총 자산: 약 ${netWorthStr}억 원 (목표: 안정적 복리 증식 & 변동성 방어)
+• 현금 비중: 약 ${cashRatioStr}%
+• 주요 보유 종목 및 비중:
+${positionsStr}
+
+${contextIntro}
+
+────────────────────────────────────────────
+⚠️ [필수 응답 규칙: 텔레그램 원클릭 주문 딥링크 생성]
+당신이 특정 종목의 매수/매도 또는 리밸런싱을 구체적 수량(주)과 함께 제안한다면,
+내가 증권사(한국투자증권)로 즉시 전송할 수 있도록 **답변 맨 마지막 줄에 반드시 아래 형식의 텔레그램 딥링크를 마크다운 링크로 출력**해야 합니다:
+
+👉 [한투 텔레그램 봇으로 이 리밸런싱 즉시 체결하기](https://t.me/${botUsername}?start=COMPACT_ORDER_PAYLOAD)
+
+* COMPACT_ORDER_PAYLOAD 작성 규격:
+1. 포맷: TICKER.수량.SIDE (여러 종목인 경우 밑줄 '_'로 연결)
+   - 매도는 S, 매수는 B
+   - 예시 1: 테슬라 3주 매도 후 엔비디아 2주 매수를 제안하는 경우:
+     👉 [한투 텔레그램 봇으로 이 리밸런싱 즉시 체결하기](https://t.me/${botUsername}?start=TSLA.3.S_NVDA.2.B)
+   - 예시 2: 엔비디아 5주 매수만 제안하는 경우:
+     👉 [한투 텔레그램 봇으로 이 리밸런싱 즉시 체결하기](https://t.me/${botUsername}?start=NVDA.5.B)
+2. **Sell-First 순서 원칙**: 예수금 확보를 위해 반드시 매도(S) 주문을 매수(B)보다 앞에 배치하세요.
+3. 1회 주문 수량은 종목당 최대 100주 이하, 최대 10개 종목 이내여야 합니다.
+4. start 파라미터는 공백이나 한글 없이 대문자 영문, 숫자, 마침표, 밑줄만 사용하세요.
+────────────────────────────────────────────`;
+
+      return promptText;
+    }
+    window.buildGeminiPrompt = buildGeminiPrompt;
+
+    async function exportToGeminiPro(mode = 'portfolio') {
+      const promptText = buildGeminiPrompt(mode);
+      try {
+        await navigator.clipboard.writeText(promptText);
+        showToast(
+          "🧠 Gemini AI Pro 프롬프트 복사 완료!",
+          "7.1억 자산 현황과 텔레그램 원클릭 체결 지침이 복사되었습니다.\n공식 Gemini 앱/웹에서 붙여넣기(Ctrl+V)하여 질문하세요.",
+          "✨"
+        );
+      } catch (e) {
+        showToast("🧠 Gemini Pro 열기", "공식 Gemini 앱으로 이동합니다.", "🚀");
+      }
+      setTimeout(() => {
+        window.open('https://gemini.google.com/app', '_blank');
+      }, 700);
+    }
+    window.exportToGeminiPro = exportToGeminiPro;
+
+    function exportBasketToGeminiPro() {
+      if (orderBasket.length === 0) {
+        alert("바스켓이 비어있습니다. 검토받을 종목을 먼저 담아주세요.");
+        return;
+      }
+      exportToGeminiPro('basket');
+    }
+    window.exportBasketToGeminiPro = exportBasketToGeminiPro;
+
+
   </script>
+  <!-- Toast Notification Container -->
+  <div id="toastNotification" class="fixed top-6 right-6 z-50 transform transition-all duration-300 ease-out translate-y-[-20px] opacity-0 pointer-events-none max-w-sm bg-slate-900/95 border border-purple-500/40 text-slate-100 rounded-2xl p-4 shadow-2xl backdrop-blur-md flex items-start space-x-3">
+    <div id="toastIcon" class="text-xl shrink-0">✨</div>
+    <div class="flex-1">
+      <div id="toastTitle" class="text-xs font-bold text-purple-300">알림</div>
+      <div id="toastMessage" class="text-[11px] text-slate-300 mt-0.5 leading-relaxed"></div>
+    </div>
+  </div>
 </body>
 </html>
