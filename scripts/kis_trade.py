@@ -16,6 +16,32 @@ def get_env_or_fail(key: str) -> str:
         sys.exit(1)
     return val
 
+def send_telegram_alert(text: str):
+    """텔레그램 봇으로 주문 체결 실시간 푸시 알림 전송"""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    if not bot_token or not chat_id:
+        print("ℹ️ [Telegram Alert] 텔레그램 환경변수(TELEGRAM_BOT_TOKEN, CHAT_ID)가 등록되지 않아 푸시 알림을 건너뜁니다.")
+        return
+
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML"
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            print("   -> 📱 텔레그램 모바일 푸시 알림 발송 완료!")
+    except Exception as e:
+        print(f"⚠️ 텔레그램 알림 발송 실패: {e}")
+
 def main():
     print("=" * 60)
     print(" 🚀 KIS Open API Serverless Trade Order Executor")
@@ -172,8 +198,31 @@ def main():
                 print(f"🎉 [주문 성공] {ticker} {qty}주 {order_type} 주문이 정상 접수되었습니다!")
                 print(f"   주문번호: {odno}")
                 print(f"   응답메시지: {msg1} ({msg_cd})")
+
+                # 텔레그램 체결 성공 푸시 알림
+                price_str = "시장가" if price == "0" else f"{price}원/달러"
+                type_badge = "🔴 매수 (BUY)" if order_type == "BUY" else "🔵 매도 (SELL)"
+                mode_str = "[모의투자]" if is_mock else "[실전투자]"
+                
+                tg_msg = (
+                    f"<b>🎉 한투 KIS 주문 접수 완료 {mode_str}</b>\n\n"
+                    f"• <b>종목</b>: <code>{ticker}</code> ({market})\n"
+                    f"• <b>구분</b>: <b>{type_badge}</b>\n"
+                    f"• <b>수량</b>: <b>{qty}주</b> ({price_str})\n"
+                    f"• <b>주문번호</b>: <code>{odno}</code>\n"
+                    f"• <b>결과</b>: {msg1}\n\n"
+                    f"<i>VALIANT ASSET VAULT · Serverless Trading Engine</i>"
+                )
+                send_telegram_alert(tg_msg)
+
             else:
                 print(f"⚠️ [주문 반려/거절] {msg1} (코드: {msg_cd})")
+                tg_fail_msg = (
+                    f"<b>⚠️ 한투 KIS 주문 반려/거절 알림</b>\n\n"
+                    f"• <b>종목</b>: <code>{ticker}</code> ({order_type} {qty}주)\n"
+                    f"• <b>사유</b>: {msg1} (코드: {msg_cd})\n"
+                )
+                send_telegram_alert(tg_fail_msg)
             print("-" * 60)
 
             # GitHub Actions Step Summary 기록
