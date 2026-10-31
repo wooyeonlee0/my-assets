@@ -16,6 +16,31 @@ def get_env_or_fail(key: str) -> str:
         sys.exit(1)
     return val
 
+def validate_risk_guard(ticker: str, qty: any, max_qty_limit: int = 100) -> tuple[bool, str, int]:
+    """
+    🛡️ Risk Guard: 시스템 레벨 강제 안전 검증 (에이전트 실수 및 오발주 원천 차단)
+    - 0 이하, 음수, 비숫자 수량 차단
+    - 1회 최대 주문 한도(기본 100주) 초과 차단
+    - 티커 유효성 확인
+    반환: (is_valid, error_msg, qty_int)
+    """
+    if not ticker or not str(ticker).strip():
+        return False, "종목 티커가 비어있습니다.", 0
+
+    try:
+        qty_int = int(qty)
+    except (ValueError, TypeError):
+        return False, f"수량 파라미터가 유효한 정수가 아닙니다: {qty}", 0
+
+    if qty_int <= 0:
+        return False, f"비정상적인 주문 수량입니다: {qty_int}주 (0보다 커야 함)", 0
+
+    if qty_int > max_qty_limit:
+        return False, f"1회 최대 허용 수량({max_qty_limit}주)을 초과했습니다: {qty_int}주 요청됨", qty_int
+
+    return True, "", qty_int
+
+
 def send_telegram_alert(text: str):
     """텔레그램 봇으로 주문 체결 실시간 푸시 알림 전송"""
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -75,23 +100,16 @@ def main():
     # -------------------------------------------------------------
     # 🛡️ Risk Guard: 시스템 레벨 강제 안전 검증 (에이전트 실수 원천 차단)
     # -------------------------------------------------------------
-    try:
-        qty_int = int(qty)
-        if qty_int <= 0:
-            print(f"❌ [Risk Guard 차단] 비정상적인 주문 수량입니다: {qty_int}주")
-            sys.exit(1)
-        max_qty_limit = int(os.getenv("MAX_ORDER_QTY", "100")) # 1회 최대 100주 하드 리밋
-        if qty_int > max_qty_limit:
-            err_text = f"❌ [Risk Guard 차단] 1회 최대 허용 수량({max_qty_limit}주)을 초과했습니다: {qty_int}주 요청됨"
-            print(err_text)
-            send_telegram_alert(
-                f"⚠️ <b>[Risk Guard 주문 차단 알림]</b>\n\n"
-                f"• <b>종목</b>: <code>{ticker}</code>\n"
-                f"• <b>사유</b>: 요청 수량({qty_int}주)이 1회 안전 리밋({max_qty_limit}주)을 초과하여 체결을 중단했습니다.\n"
-            )
-            sys.exit(1)
-    except ValueError:
-        print(f"❌ [Risk Guard 차단] 수량 파라미터가 유효하지 않습니다: {qty}")
+    max_qty_limit = int(os.getenv("MAX_ORDER_QTY", "100")) # 1회 최대 100주 하드 리밋
+    is_valid, err_msg, qty_int = validate_risk_guard(ticker, qty, max_qty_limit)
+    if not is_valid:
+        err_text = f"❌ [Risk Guard 차단] {err_msg}"
+        print(err_text)
+        send_telegram_alert(
+            f"⚠️ <b>[Risk Guard 주문 차단 알림]</b>\n\n"
+            f"• <b>종목</b>: <code>{ticker}</code>\n"
+            f"• <b>사유</b>: {err_msg}\n"
+        )
         sys.exit(1)
 
     base_url = "https://openapivts.koreainvestment.com:29443" if is_mock else "https://openapi.koreainvestment.com:9443"
