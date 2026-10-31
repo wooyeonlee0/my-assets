@@ -72,6 +72,28 @@ def main():
         else:
             market = "US_NASD" # 기본 미국 나스닥/뉴욕
 
+    # -------------------------------------------------------------
+    # 🛡️ Risk Guard: 시스템 레벨 강제 안전 검증 (에이전트 실수 원천 차단)
+    # -------------------------------------------------------------
+    try:
+        qty_int = int(qty)
+        if qty_int <= 0:
+            print(f"❌ [Risk Guard 차단] 비정상적인 주문 수량입니다: {qty_int}주")
+            sys.exit(1)
+        max_qty_limit = int(os.getenv("MAX_ORDER_QTY", "100")) # 1회 최대 100주 하드 리밋
+        if qty_int > max_qty_limit:
+            err_text = f"❌ [Risk Guard 차단] 1회 최대 허용 수량({max_qty_limit}주)을 초과했습니다: {qty_int}주 요청됨"
+            print(err_text)
+            send_telegram_alert(
+                f"⚠️ <b>[Risk Guard 주문 차단 알림]</b>\n\n"
+                f"• <b>종목</b>: <code>{ticker}</code>\n"
+                f"• <b>사유</b>: 요청 수량({qty_int}주)이 1회 안전 리밋({max_qty_limit}주)을 초과하여 체결을 중단했습니다.\n"
+            )
+            sys.exit(1)
+    except ValueError:
+        print(f"❌ [Risk Guard 차단] 수량 파라미터가 유효하지 않습니다: {qty}")
+        sys.exit(1)
+
     base_url = "https://openapivts.koreainvestment.com:29443" if is_mock else "https://openapi.koreainvestment.com:9443"
     print(f"📍 모드: {'[모의투자]' if is_mock else '[실전투자]'}")
     print(f"📍 엔드포인트: {base_url}")
