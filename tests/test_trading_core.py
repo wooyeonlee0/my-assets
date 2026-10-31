@@ -138,6 +138,49 @@ class TestUnifiedTradingCore(unittest.TestCase):
         self.assertIn("매수 순서", html_text)
         self.assertIn("GOOGL", html_text)
 
+    def test_mixed_domestic_and_overseas_markets(self):
+        """국내주식(6자리 숫자)과 해외주식(알파벳) 혼합 배치 시 시장 자동 판별 검증"""
+        batch = BatchOrder(orders=[
+            OrderItem(ticker="005930", qty=10, side="BUY"), # 삼성전자
+            OrderItem(ticker="NVDA", qty=2, side="BUY"),     # 미국 나스닥
+            OrderItem(ticker="000660", qty=5, side="SELL"),  # SK하이닉스
+            OrderItem(ticker="AAPL", qty=1, side="SELL")     # 미국
+        ])
+        batch.sort_sell_first()
+
+        # 매도 2건(000660, AAPL), 매수 2건(005930, NVDA)
+        self.assertEqual(len(batch.orders), 4)
+        self.assertEqual(batch.orders[0].market, "KR_STOCK")
+        self.assertEqual(batch.orders[1].market, "US_NASD")
+        self.assertEqual(batch.orders[2].market, "KR_STOCK")
+        self.assertEqual(batch.orders[3].market, "US_NASD")
+
+    def test_empty_batch_orders_rejection(self):
+        """빈 배치 주문(0건) 입력 시 Risk Guard 차단 검증"""
+        empty_batch = BatchOrder(orders=[])
+        is_valid, msg, _ = validate_batch_risk_guard(empty_batch)
+        self.assertFalse(is_valid)
+        self.assertIn("주문 항목이 존재하지 않습니다", msg)
+
+    def test_order_item_serialization_roundtrip(self):
+        """OrderItem 및 BatchOrder JSON 직렬화/역직렬화 100% 왕복 무결성 검증"""
+        original_item = OrderItem(ticker="TSLA", qty=4, side="BUY", price="250.5", market="US_NASD")
+        d = original_item.to_dict()
+        restored_item = OrderItem.from_dict(d)
+
+        self.assertEqual(restored_item.ticker, "TSLA")
+        self.assertEqual(restored_item.qty, 4)
+        self.assertEqual(restored_item.side, "BUY")
+        self.assertEqual(restored_item.price, "250.5")
+        self.assertEqual(restored_item.market, "US_NASD")
+
+        # BatchOrder 왕복 검증
+        batch = BatchOrder(orders=[original_item])
+        json_str = batch.to_json()
+        restored_batch = BatchOrder.from_json(json_str)
+        self.assertEqual(len(restored_batch.orders), 1)
+        self.assertEqual(restored_batch.orders[0].ticker, "TSLA")
+
 
 if __name__ == "__main__":
     unittest.main()

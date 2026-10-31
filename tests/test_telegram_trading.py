@@ -375,6 +375,33 @@ class TestEndToEndSimulation(unittest.TestCase):
         last_markup = self.edited_markups[-1]["markup"]
         self.assertIn("주문 취소됨", last_markup["inline_keyboard"][0][0]["text"])
 
+    def test_forged_order_id_callback(self):
+        """존재하지 않는 무작위 order_id 조작 공격 시 안전 거부 검증"""
+        fake_query = {
+            "id": "cb_fake_1",
+            "from": {"id": 9999},
+            "data": "start_pin:fake_order_999",
+            "message": {"chat": {"id": 9999}, "message_id": 103}
+        }
+        self.bot.handle_callback_query(fake_query)
+        self.assertEqual(len(self.triggered_orders), 0)
+        self.assertIn("존재하지 않는 주문", self.answered_callbacks[-1]["text"])
+
+    def test_malformed_callback_data_resilience(self):
+        """비정상적으로 잘린 callback_data 수신 시 무중단 복구 검증"""
+        for malformed in ["pin:", "pin", "confirm_order", "invalid_action"]:
+            query = {
+                "id": "cb_malformed",
+                "from": {"id": 9999},
+                "data": malformed,
+                "message": {"chat": {"id": 9999}, "message_id": 104}
+            }
+            # 예외 없이 무시되어야 함
+            try:
+                self.bot.handle_callback_query(query)
+            except Exception as e:
+                self.fail(f"크래시 발생: {e}")
+
 
 if __name__ == "__main__":
     unittest.main()
