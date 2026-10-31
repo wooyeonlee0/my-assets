@@ -73,7 +73,8 @@ class TelegramTradingBot:
         gemini_api_key: Optional[str] = None,
         github_pat: Optional[str] = None,
         github_repo: str = "wooyeonlee0/my-assets",
-        max_qty_limit: int = 100
+        max_qty_limit: int = 100,
+        trading_pin: Optional[str] = None
     ):
         self.token = token or os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
         
@@ -90,8 +91,10 @@ class TelegramTradingBot:
         self.github_pat = github_pat or os.getenv("GITHUB_PAT", "").strip()
         self.github_repo = github_repo
         self.max_qty_limit = int(os.getenv("MAX_ORDER_QTY", str(max_qty_limit)))
+        # 🔐 2차 보안 거래 PIN (기본값: 123456)
+        self.trading_pin = str(trading_pin or os.getenv("TRADING_PIN", "123456")).strip()
 
-        # 인라인 버튼 주문 보관소 (order_id -> {ticker, qty, side, price, timestamp, executed: bool})
+        # 인라인 버튼 주문 보관소 (order_id -> {ticker, qty, side, price, timestamp, executed: bool, pin_buffer: str, fail_attempts: int})
         self.pending_orders: Dict[str, Dict[str, Any]] = {}
 
         self.base_url = f"https://api.telegram.org/bot{self.token}"
@@ -299,7 +302,9 @@ class TelegramTradingBot:
         self.pending_orders[order_id] = {
             **order_data,
             "created_at": time.time(),
-            "executed": False
+            "executed": False,
+            "pin_buffer": "",
+            "fail_attempts": 0
         }
 
         ticker = order_data.get("ticker", "").upper()
@@ -310,8 +315,8 @@ class TelegramTradingBot:
             "inline_keyboard": [
                 [
                     {
-                        "text": f"🚀 {ticker} {qty}주 {side} 즉시 실행",
-                        "callback_data": f"confirm_order:{order_id}"
+                        "text": f"🚀 {ticker} {qty}주 {side} 승인 및 2차 인증",
+                        "callback_data": f"start_pin:{order_id}"
                     }
                 ],
                 [
@@ -323,6 +328,54 @@ class TelegramTradingBot:
             ]
         }
         return order_id, reply_markup
+
+    def render_pin_keypad(self, order_id: str) -> Tuple[str, Dict[str, Any]]:
+        """
+        🔐 2차 보안 PIN 입력 가상 키패드 렌더링
+        - 반환: (마스킹 안내 메시지, 인라인 키패드 마크업)
+        """
+        order_info = self.pending_orders.get(order_id, {})
+        ticker = order_info.get("ticker", "")
+        qty = order_info.get("qty", 1)
+        side = "매수" if order_info.get("side", "BUY") == "BUY" else "매도"
+        pin_buffer = order_info.get("pin_buffer", "")
+        attempts = order_info.get("fail_attempts", 0)
+
+        # 6자리 마스킹 생성: ● (입력됨) / ○ (빈칸)
+        masked_slots = " ".join(["●" if i < len(pin_buffer) else "○" for i in range(6)])
+
+        text = (
+            f"🔐 <b>[한투 주문 2차 보안 PIN 인증]</b>\n\n"
+            f"• <b>종목/수량</b>: <code>{ticker}</code> {qty}주 {side}\n"
+            f"• <b>인증 상태</b>: [ {masked_slots} ]\n"
+            f"• <b>남은 기회</b>: {3 - attempts}회\n\n"
+            f"안전을 위해 <b>6자리 보안 PIN</b>을 키패드로 입력해주세요:"
+        )
+
+        # 3x4 숫자 인라인 키패드
+        keyboard = [
+            [
+                {"text": "1", "callback_data": f"pin:{order_id}:1"},
+                {"text": "2", "callback_data": f"pin:{order_id}:2"},
+                {"text": "3", "callback_data": f"pin:{order_id}:3"}
+            ],
+            [
+                {"text": "4", "callback_data": f"pin:{order_id}:4"},
+                {"text": "5", "callback_data": f"pin:{order_id}:5"},
+                {"text": "6", "callback_data": f"pin:{order_id}:6"}
+            ],
+            [
+                {"text": "7", "callback_data": f"pin:{order_id}:7"},
+                {"text": "8", "callback_data": f"pin:{order_id}:8"},
+                {"text": "9", "callback_data": f"pin:{order_id}:9"}
+            ],
+            [
+                {"text": "⌫", "callback_data": f"pin:{order_id}:back"},
+                {"text": "0", "callback_data": f"pin:{order_id}:0"},
+                {"text": "❌ 취소", "callback_data": f"cancel_order:{order_id}"}
+            ]
+        ]
+        return text, {"inline_keyboard": keyboard}
 
     def trigger_kis_github_workflow(self, order_data: Dict[str, Any]) -> Tuple[bool, str]:
         """
@@ -493,8 +546,8 @@ class TelegramTradingBot:
             )
             return
 
-        # 3단계: 주문 확정 실행 액션
-        if data.startswith("confirm_order:"):
+        # 3단계: 2차 보안 PIN 인증 시작
+        if data.startswith("start_pin:") or data.startswith("confirm_order:"):
             order_id = data.split(":")[1]
             order_info = self.pending_orders.get(order_id)
 
@@ -513,64 +566,143 @@ class TelegramTradingBot:
                 )
                 return
 
-            # 중복 클릭 / 멱등성 검증 (더블 클릭 방지)
             if order_info.get("executed"):
                 self.answer_callback_query(cb_id, text="이미 처리된 주문입니다.", show_alert=False)
                 return
 
-            # 즉시 잠금 (In-Flight 상태로 전환)
-            order_info["executed"] = True
+            # 🔐 키패드 렌더링 및 PIN 입력 모드로 전환
+            text, markup = self.render_pin_keypad(order_id)
+            self.answer_callback_query(cb_id, text="🔐 6자리 보안 PIN을 입력해주세요.")
+            self.edit_message_text(chat_id, message_id, text, reply_markup=markup)
+            return
 
-            ticker = order_info.get("ticker")
-            qty = order_info.get("qty")
-            side = "매수" if order_info.get("side") == "BUY" else "매도"
+        # 4단계: 키패드 터치 처리 (pin:{order_id}:{action})
+        if data.startswith("pin:"):
+            parts = data.split(":")
+            if len(parts) < 3:
+                return
+            order_id = parts[1]
+            action = parts[2]
+            order_info = self.pending_orders.get(order_id)
 
-            # 팝업 알림 표시
-            self.answer_callback_query(
-                cb_id,
-                text=f"🚀 {ticker} {qty}주 {side} 주문을 한투 서버로 전송합니다...",
-                show_alert=False
-            )
+            if not order_info:
+                self.answer_callback_query(cb_id, text="⚠️ 만료되었거나 존재하지 않는 주문입니다.", show_alert=True)
+                return
 
-            # 버튼을 [⏳ 주문 처리 중...]으로 실시간 변경
-            self.edit_message_reply_markup(
-                chat_id,
-                message_id,
-                reply_markup={"inline_keyboard": [[{"text": "⏳ [한투 서버로 전송 중...]", "callback_data": "noop"}]]}
-            )
+            if order_info.get("executed"):
+                self.answer_callback_query(cb_id, text="이미 처리된 주문입니다.", show_alert=False)
+                return
 
-            # 4단계: KIS GitHub Actions 트리거
-            success, msg = self.trigger_kis_github_workflow(order_info)
+            # 백스페이스 처리
+            if action == "back":
+                order_info["pin_buffer"] = order_info.get("pin_buffer", "")[:-1]
+                text, markup = self.render_pin_keypad(order_id)
+                self.answer_callback_query(cb_id)
+                self.edit_message_text(chat_id, message_id, text, reply_markup=markup)
+                return
 
-            if success:
-                logger.info(f"✅ 주문 성공: {ticker} {qty}주 {side}")
-                self.edit_message_reply_markup(
-                    chat_id,
-                    message_id,
-                    reply_markup={"inline_keyboard": [[{"text": f"✅ [체결 요청 완료: {ticker} {qty}주]", "callback_data": "noop"}]]}
-                )
-                self.send_message(
-                    chat_id,
-                    f"✅ <b>[한투 주문 발송 완료]</b>\n\n"
-                    f"• <b>종목</b>: <code>{ticker}</code>\n"
-                    f"• <b>구분</b>: <b>{side}</b>\n"
-                    f"• <b>수량</b>: <b>{qty}주</b>\n"
-                    f"• <b>결과</b>: GitHub Actions 서버리스 주문 러너 가동 시작\n"
-                    f"체결이 완료되면 텔레그램으로 최종 체결 통보가 발송됩니다."
-                )
-            else:
-                logger.error(f"❌ 주문 실패: {msg}")
-                self.edit_message_reply_markup(
-                    chat_id,
-                    message_id,
-                    reply_markup={"inline_keyboard": [[{"text": f"❌ [주문 실패: {msg[:20]}]", "callback_data": "noop"}]]}
-                )
-                self.send_message(
-                    chat_id,
-                    f"❌ <b>[주문 전송 실패]</b>\n\n"
-                    f"• <b>사유</b>: {msg}\n"
-                    f"포트폴리오 자산에 아무런 변동이 발생하지 않았습니다."
-                )
+            # 숫자 누름 처리
+            if action in "0123456789":
+                pin_buf = order_info.get("pin_buffer", "")
+                if len(pin_buf) < 6:
+                    pin_buf += action
+                    order_info["pin_buffer"] = pin_buf
+
+                # 아직 6자리 미만일 때: 마스킹 디스플레이만 갱신
+                if len(pin_buf) < 6:
+                    self.answer_callback_query(cb_id)
+                    text, markup = self.render_pin_keypad(order_id)
+                    self.edit_message_text(chat_id, message_id, text, reply_markup=markup)
+                    return
+
+                # 6자리 도달 시: 🔐 보안 PIN 검증
+                if pin_buf == self.trading_pin:
+                    # 🟢 PIN 일치: 주문 잠금 및 집행
+                    order_info["executed"] = True
+                    ticker = order_info.get("ticker")
+                    qty = order_info.get("qty")
+                    side = "매수" if order_info.get("side") == "BUY" else "매도"
+
+                    self.answer_callback_query(
+                        cb_id,
+                        text=f"✅ PIN 인증 성공! {ticker} {qty}주 주문을 전송합니다.",
+                        show_alert=False
+                    )
+
+                    self.edit_message_text(
+                        chat_id,
+                        message_id,
+                        f"🔐 <b>[2차 보안 PIN 인증 완료]</b>\n\n"
+                        f"• <b>종목</b>: <code>{ticker}</code>\n"
+                        f"• <b>수량</b>: <b>{qty}주</b> {side}\n\n"
+                        f"⏳ 한투 서버로 주문을 전송하고 있습니다...",
+                        reply_markup={"inline_keyboard": [[{"text": "⏳ [한투 서버로 전송 중...]", "callback_data": "noop"}]]}
+                    )
+
+                    # KIS GitHub Actions 트리거
+                    success, msg = self.trigger_kis_github_workflow(order_info)
+
+                    if success:
+                        logger.info(f"✅ PIN 인증 주문 성공: {ticker} {qty}주 {side}")
+                        self.edit_message_reply_markup(
+                            chat_id,
+                            message_id,
+                            reply_markup={"inline_keyboard": [[{"text": f"✅ [체결 요청 완료: {ticker} {qty}주]", "callback_data": "noop"}]]}
+                        )
+                        self.send_message(
+                            chat_id,
+                            f"✅ <b>[한투 주문 발송 완료]</b>\n\n"
+                            f"• <b>종목</b>: <code>{ticker}</code>\n"
+                            f"• <b>구분</b>: <b>{side}</b>\n"
+                            f"• <b>수량</b>: <b>{qty}주</b>\n"
+                            f"• <b>인증</b>: 6자리 보안 PIN 통과\n"
+                            f"• <b>결과</b>: GitHub Actions 서버리스 주문 러너 가동\n\n"
+                            f"체결이 완료되면 텔레그램으로 최종 체결 통보가 발송됩니다."
+                        )
+                    else:
+                        logger.error(f"❌ PIN 인증 주문 실패: {msg}")
+                        self.edit_message_reply_markup(
+                            chat_id,
+                            message_id,
+                            reply_markup={"inline_keyboard": [[{"text": f"❌ [주문 실패: {msg[:20]}]", "callback_data": "noop"}]]}
+                        )
+                        self.send_message(
+                            chat_id,
+                            f"❌ <b>[주문 전송 실패]</b>\n\n"
+                            f"• <b>사유</b>: {msg}\n"
+                            f"포트폴리오 자산에 아무런 변동이 발생하지 않았습니다."
+                        )
+                else:
+                    # 🔴 PIN 불일치 처리
+                    order_info["fail_attempts"] = order_info.get("fail_attempts", 0) + 1
+                    order_info["pin_buffer"] = "" # 버퍼 초기화
+                    attempts = order_info["fail_attempts"]
+
+                    if attempts >= 3:
+                        # 3회 연속 실패: 주문 강제 파기
+                        order_info["executed"] = True
+                        self.answer_callback_query(
+                            cb_id,
+                            text="⛔ 3회 연속 PIN 오류로 주문이 취소되었습니다.",
+                            show_alert=True
+                        )
+                        self.edit_message_text(
+                            chat_id,
+                            message_id,
+                            "⛔ <b>[주문 강제 취소]</b>\n\n"
+                            "보안 PIN 3회 연속 불일치로 주문이 안전하게 파기되었습니다.\n"
+                            "자산 안전을 위해 다시 주문을 생성해주세요.",
+                            reply_markup={"inline_keyboard": [[{"text": "❌ [보안 잠금됨]", "callback_data": "noop"}]]}
+                        )
+                    else:
+                        self.answer_callback_query(
+                            cb_id,
+                            text=f"❌ PIN이 일치하지 않습니다. (남은 기회: {3 - attempts}회)",
+                            show_alert=True
+                        )
+                        text, markup = self.render_pin_keypad(order_id)
+                        self.edit_message_text(chat_id, message_id, text, reply_markup=markup)
+            return
 
     def run_polling(self, interval: float = 1.0):
         """롱 폴링 메인 루프"""

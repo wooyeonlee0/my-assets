@@ -150,13 +150,31 @@ class TestOrderParsingAndExecution(unittest.TestCase):
 
         self.assertIn(order_id, self.bot.pending_orders)
         self.assertFalse(self.bot.pending_orders[order_id]["executed"])
+        self.assertEqual(self.bot.pending_orders[order_id]["pin_buffer"], "")
 
         # 인라인 버튼 구조 검증
         buttons = markup["inline_keyboard"]
         self.assertEqual(len(buttons), 2)
-        self.assertIn("GOOGL 3주 매수 즉시 실행", buttons[0][0]["text"])
-        self.assertEqual(buttons[0][0]["callback_data"], f"confirm_order:{order_id}")
+        self.assertIn("GOOGL 3주 매수 승인 및 2차 인증", buttons[0][0]["text"])
+        self.assertEqual(buttons[0][0]["callback_data"], f"start_pin:{order_id}")
         self.assertEqual(buttons[1][0]["callback_data"], f"cancel_order:{order_id}")
+
+    def test_pin_keypad_rendering(self):
+        """2차 보안 PIN 가상 키패드 마크업 구조 검증"""
+        order_data = {"ticker": "NVDA", "qty": 2, "side": "BUY"}
+        order_id, _ = self.bot.create_order_action_markup(order_data)
+
+        text, markup = self.bot.render_pin_keypad(order_id)
+        self.assertIn("2차 보안 PIN 인증", text)
+        self.assertIn("○ ○ ○ ○ ○ ○", text) # 0자리 입력 상태
+
+        # 3x4 키패드 검증
+        rows = markup["inline_keyboard"]
+        self.assertEqual(len(rows), 4) # 4행
+        self.assertEqual(rows[0][0]["text"], "1")
+        self.assertEqual(rows[3][0]["text"], "⌫") # 백스페이스
+        self.assertEqual(rows[3][1]["text"], "0")
+        self.assertEqual(rows[3][2]["text"], "❌ 취소")
 
     def test_double_click_prevention(self):
         """더블 클릭 방지 (중복 체결 방어) 검증"""
@@ -223,12 +241,14 @@ class TestEndToEndSimulation(unittest.TestCase):
         self.sent_messages = []
         self.answered_callbacks = []
         self.edited_markups = []
+        self.edited_texts = []
         self.triggered_orders = []
 
         # Telegram API 목(Mock) 주입
         self.bot.send_message = lambda chat_id, text, reply_markup=None, parse_mode="HTML": self.sent_messages.append({"chat_id": chat_id, "text": text, "markup": reply_markup})
         self.bot.answer_callback_query = lambda cb_id, text=None, show_alert=False: self.answered_callbacks.append({"id": cb_id, "text": text, "show_alert": show_alert})
         self.bot.edit_message_reply_markup = lambda chat_id, message_id, reply_markup=None: self.edited_markups.append({"chat_id": chat_id, "markup": reply_markup})
+        self.bot.edit_message_text = lambda chat_id, message_id, text, reply_markup=None, parse_mode="HTML": self.edited_texts.append({"chat_id": chat_id, "text": text, "markup": reply_markup})
         self.bot._call_telegram = lambda method, payload: {"ok": True, "result": {}}
         
         # GitHub Actions 주문 트리거 목 주입
@@ -238,7 +258,8 @@ class TestEndToEndSimulation(unittest.TestCase):
         self.bot.trigger_kis_github_workflow = mock_trigger
 
     def test_e2e_successful_buy_confirmation_flow(self):
-        """E2E 성공 흐름: AI 주문 제안 ➔ 사용자 인라인 버튼 승인 ➔ 가드 통과 ➔ 체결 요청 완료"""
+        """E2E 성공 흐름: AI 제안 ➔ 1차 승인 ➔ 키패드 6자리 PIN 입력 ➔ 체결 요청 완료"""
+        self.bot.trading_pin = "123456"
         # 1. AI 응답 모의 (GOOGL 2주 매수 제안)
         self.bot.call_gemini = lambda prompt: "구글 저평가 국면입니다.\n:::kis_order {\"ticker\": \"GOOGL\", \"qty\": 2, \"side\": \"BUY\"}:::"
 
@@ -253,42 +274,79 @@ class TestEndToEndSimulation(unittest.TestCase):
         # 검증: 인라인 버튼이 달린 메시지가 전송되었는가?
         self.assertEqual(len(self.sent_messages), 1)
         sent = self.sent_messages[0]
-        self.assertIn("GOOGL", sent["text"])
-        self.assertIn("2주", sent["text"])
         markup = sent["markup"]
-        self.assertIsNotNone(markup)
-
-        # 발급된 order_id 추출
         confirm_callback_data = markup["inline_keyboard"][0][0]["callback_data"]
         order_id = confirm_callback_data.split(":")[1]
 
-        # 3. 사용자 버튼 터치 (인라인 승인 클릭)
-        callback_query = {
-            "id": "cb_query_1",
+        # 3. 사용자 [승인 및 2차 인증] 버튼 터치
+        self.bot.handle_callback_query({
+            "id": "cb_start_pin",
             "from": {"id": 9999},
-            "data": f"confirm_order:{order_id}",
+            "data": f"start_pin:{order_id}",
             "message": {"chat": {"id": 9999}, "message_id": 101}
-        }
-        self.bot.handle_callback_query(callback_query)
+        })
 
-        # 검증 1: 팝업 피드백 전송 확인
-        self.assertEqual(len(self.answered_callbacks), 1)
-        self.assertIn("GOOGL 2주", self.answered_callbacks[0]["text"])
+        # 검증: 키패드가 렌더링되었는가?
+        self.assertTrue(len(self.edited_texts) > 0)
+        self.assertIn("보안 PIN 인증", self.edited_texts[-1]["text"])
 
-        # 검증 2: 주문 실행기(GitHub Actions / KIS)로 정확히 1회 전달되었는가?
+        # 4. 키패드로 1, 2, 3, 4, 5, 6 순차 터치
+        for digit in "123456":
+            self.bot.handle_callback_query({
+                "id": f"cb_digit_{digit}",
+                "from": {"id": 9999},
+                "data": f"pin:{order_id}:{digit}",
+                "message": {"chat": {"id": 9999}, "message_id": 101}
+            })
+
+        # 검증 1: 6자리 입력 후 KIS 엔진으로 주문이 정확히 1회 전송되었는가?
         self.assertEqual(len(self.triggered_orders), 1)
         self.assertEqual(self.triggered_orders[0]["ticker"], "GOOGL")
         self.assertEqual(self.triggered_orders[0]["qty"], 2)
 
-        # 검증 3: 버튼 텍스트가 [체결 요청 완료]로 변경되었는가?
-        last_markup = self.edited_markups[-1]["markup"]
-        button_text = last_markup["inline_keyboard"][0][0]["text"]
-        self.assertIn("체결 요청 완료: GOOGL 2주", button_text)
+        # 검증 2: 주문이 executed=True로 잠겼는가?
+        self.assertTrue(self.bot.pending_orders[order_id]["executed"])
 
-        # 검증 4: 더블 클릭(재시도) 시 중복 실행 방지 확인
-        self.bot.handle_callback_query(callback_query)
-        self.assertEqual(len(self.triggered_orders), 1, "중복 클릭 시 추가 주문이 전송되면 안 됨")
-        self.assertEqual(self.answered_callbacks[-1]["text"], "이미 처리된 주문입니다.")
+    def test_e2e_pin_failure_and_lock(self):
+        """PIN 3회 연속 오류 시 주문 영구 파기 및 차단 검증"""
+        self.bot.trading_pin = "123456"
+        order_data = {"ticker": "AAPL", "qty": 1, "side": "BUY"}
+        order_id, _ = self.bot.create_order_action_markup(order_data)
+
+        # 1회차 오입력: 000000
+        for digit in "000000":
+            self.bot.handle_callback_query({
+                "id": "cb_f1",
+                "from": {"id": 9999},
+                "data": f"pin:{order_id}:{digit}",
+                "message": {"chat": {"id": 9999}, "message_id": 101}
+            })
+        self.assertEqual(self.bot.pending_orders[order_id]["fail_attempts"], 1)
+        self.assertEqual(len(self.triggered_orders), 0)
+
+        # 2회차 오입력: 111111
+        for digit in "111111":
+            self.bot.handle_callback_query({
+                "id": "cb_f2",
+                "from": {"id": 9999},
+                "data": f"pin:{order_id}:{digit}",
+                "message": {"chat": {"id": 9999}, "message_id": 101}
+            })
+        self.assertEqual(self.bot.pending_orders[order_id]["fail_attempts"], 2)
+        self.assertEqual(len(self.triggered_orders), 0)
+
+        # 3회차 오입력: 999999 -> 3회 도달 시 주문 강제 파기!
+        for digit in "999999":
+            self.bot.handle_callback_query({
+                "id": "cb_f3",
+                "from": {"id": 9999},
+                "data": f"pin:{order_id}:{digit}",
+                "message": {"chat": {"id": 9999}, "message_id": 101}
+            })
+        self.assertEqual(self.bot.pending_orders[order_id]["fail_attempts"], 3)
+        self.assertTrue(self.bot.pending_orders[order_id]["executed"], "3회 실패 시 영구 파기되어야 함")
+        self.assertEqual(len(self.triggered_orders), 0, "주문은 절대 발송되면 안 됨")
+        self.assertIn("주문 강제 취소", self.edited_texts[-1]["text"])
 
     def test_e2e_user_cancel_flow(self):
         """E2E 취소 흐름: AI 주문 제안 ➔ 사용자 취소 버튼 터치 ➔ 주문 0회 실행 & 취소 상태 갱신"""

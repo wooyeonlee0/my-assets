@@ -1803,6 +1803,22 @@
         return;
       }
 
+      if (parseInt(qty) > 100) {
+        alert("⚠️ [Risk Guard 차단] 1회 최대 주문 한도(100주)를 초과할 수 없습니다.");
+        return;
+      }
+
+      // 🔐 2차 보안: 주문 집행 직전 6자리 보안 PIN 확인 (스마트폰 도난/실수 방어)
+      const actionKo = currentOrderType === 'BUY' ? '매수' : '매도';
+      const promptPin = prompt(`🔐 [한투 주문 2차 보안 인증]\n\n• 대상: ${ticker} ${qty}주 ${actionKo} (${currentPriceMode === 'MARKET' ? '시장가' : price + '원/달러'})\n\n주문을 증권사로 전송하려면 6자리 보안 PIN을 입력해주세요:`);
+      if (promptPin === null) return; // 사용자 취소
+
+      const expectedPin = sessionStorage.getItem('valiant_unlocked_pin') || localStorage.getItem('valiant_cached_pin') || "123456";
+      if (promptPin.trim() !== expectedPin) {
+        alert("❌ [인증 실패] 보안 PIN이 일치하지 않습니다. 주문이 전송되지 않았습니다.");
+        return;
+      }
+
       const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
       const token = localStorage.getItem('valiant_gh_token');
 
