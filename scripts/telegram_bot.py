@@ -210,7 +210,8 @@ class TelegramTradingBot:
 
         full_prompt = f"{DEFAULT_PORTFOLIO_CONTEXT}\n\n[사용자 질문]: {user_prompt}"
 
-        models = ["gemini-2.5-flash", "gemini-1.5-flash"]
+        # ⚡ 3.8-Flash 이상 최상위 모델만 한정 순회
+        models = ["gemini-3.8-flash", "gemini-4-argon"]
         for model in models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_api_key}"
             payload = {

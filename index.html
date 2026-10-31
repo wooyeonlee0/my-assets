@@ -383,10 +383,8 @@
             <div class="flex items-center space-x-1.5">
               <span class="text-[11px] text-slate-400 font-medium shrink-0">모델:</span>
               <select id="chatModelSelect" onchange="onModelChanged()" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono">
-                <option value="gemini-2.5-flash" selected>gemini-2.5-flash 🛡️ (추천·트래픽 안정)</option>
-                <option value="gemini-3.8-flash">gemini-3.8-flash ⚡ (차세대)</option>
-                <option value="gemini-4-argon">gemini-4-argon 🧠 (심층)</option>
-                <option value="gemini-2.0-flash">gemini-2.0-flash 🚀 (고속)</option>
+                <option value="gemini-3.8-flash" selected>gemini-3.8-flash ⚡ (차세대 고성능 플래그십)</option>
+                <option value="gemini-4-argon">gemini-4-argon 🧠 (최상위 심층 추론)</option>
               </select>
             </div>
 
@@ -1192,11 +1190,11 @@
 
     async function callGeminiAPI(apiKey, payload) {
       const modelSelect = document.getElementById('chatModelSelect');
-      const userSelected = (modelSelect ? modelSelect.value : null) || localStorage.getItem('valiant_selected_model') || 'gemini-2.5-flash';
+      const userSelected = (modelSelect ? modelSelect.value : null) || localStorage.getItem('valiant_selected_model') || 'gemini-3.8-flash';
       
-      // 구글 공식 안정화 실존 모델 우선 순회
+      // ⚡ 3.8-Flash 이상 최상위 모델만 한정 순회 (하위 모델 다운그레이드 원천 배제)
       const candidateModels = [userSelected];
-      ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].forEach(m => {
+      ['gemini-3.8-flash', 'gemini-4-argon'].forEach(m => {
         if (!candidateModels.includes(m)) candidateModels.push(m);
       });
 
