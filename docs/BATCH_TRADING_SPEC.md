@@ -53,24 +53,26 @@
 
 ---
 
-## 3. Gemini AI Pro(Argon) ➔ 텔레그램 딥링크 규격 (Flow 1: Closed-Loop)
+## 3. Gemini AI Pro(Argon) ➔ 웹앱 직통 복귀 규격 (Web-Direct Closed-Loop)
 
-구독 중인 **Google One AI Premium (Gemini Advanced/Pro, Argon 모델)**을 100% 무료(유료 API 0원)로 활용하기 위해 텔레그램의 64글자 딥링크 제한을 충족하는 초소형 콤팩트 인코딩/디코딩 규격을 제공합니다.
+구독 중인 **Google One AI Premium (Gemini Advanced/Pro, Argon 모델)**을 100% 무료(유료 API 0원)로 활용하면서, 메신저를 거치지 않고 내 웹앱으로 바로 돌아와 바스켓을 여는 웹 직통 체결 규격입니다.
 
-### 콤팩트 주문 포맷 (Compact Order Format)
-`https://t.me/<BOT_USERNAME>?start=<COMPACT_PAYLOAD>`
+### 웹앱 직통 바스켓 포맷 (Web-Direct URL Format - 1순위 기본)
+`https://<웹앱주소>/?order=<COMPACT_PAYLOAD>`
 
 - **구조**: `TICKER.QTY.SIDE_TICKER.QTY.SIDE`
   - `S`: SELL (매도)
   - `B`: BUY (매수)
   - `_`: 다중 종목 구분자
-- **예시**:
-  - `TSLA.3.S_NVDA.2.B` (테슬라 3주 매도 후 엔비디아 2주 매수, 19글자)
-  - `NVDA.5.B` (엔비디아 5주 단건 매수, 8글자)
-- **보안 및 규격 원칙**:
-  1. **Sell-First 순서 보장**: 인코더(`encode_compact_order`)가 매도(S) 종목을 무조건 앞단에 정렬하여 출력.
-  2. **64자 제한 엄수**: 5~6개 종목을 묶어도 45자 이내로 전송되어 텔레그램 파라미터 규격을 완벽 준수.
-  3. **가상 키패드 즉시 호출**: 수신된 `/start <payload>`는 텔레그램 봇에서 파싱 즉시 리밸런싱 요약 카드와 6자리 PIN 가상 키패드로 렌더링.
+- **동작 흐름**:
+  1. 웹앱 상단 `[🧠 Gemini Pro 상담]` 클릭 시 실시간 7.1억 자산 비중과 지침이 클립보드에 복사되고 공식 Gemini 앱 실행.
+  2. Gemini(Argon)가 답변 끝에 `👉 [내 7.1억 자산 웹앱에서 이 바스켓 바로 열기](https://...?order=TSLA.3.S_NVDA.2.B)` 링크 출력.
+  3. 사용자가 링크 터치 시 웹앱이 열리며 즉시 바스켓 모달이 팝업되고 수량/종목 시각적 확인.
+  4. 6자리 PIN 입력 ➔ 한투 클라우드 러너 체결 ➔ 텔레그램으로 체결 결과 영수증 1줄 푸시.
+
+### 텔레그램 딥링크 규격 (Telegram Deep Link - 2순위 알림/보조)
+`https://t.me/<BOT_USERNAME>?start=<COMPACT_PAYLOAD>`
+- 텔레그램 메신저 내부에서 바로 체결하고자 할 때 활용 가능하며, 평소에는 KIS 체결 영수증 알림 채널(옵션 2)로 동작.
 
 ---
 
