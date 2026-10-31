@@ -221,8 +221,16 @@
         <!-- Position Table -->
         <div class="lg:col-span-7 card-glass rounded-2xl p-5">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-bold text-slate-200">보유 종목 상세 리스트 (상위 20)</h2>
-            <span class="text-xs text-sky-400 font-medium">평가액 순 정렬</span>
+            <div>
+              <h2 class="text-sm font-bold text-slate-200">보유 종목 상세 리스트 (상위 20)</h2>
+              <p class="text-[11px] text-slate-400">종목별 [주문] 버튼 클릭 시 한투 API로 원클릭 체결</p>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button onclick="openOrderModal('', '')" class="px-3 py-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white rounded-lg text-xs font-bold shadow-md shadow-sky-500/20 transition-all flex items-center space-x-1">
+                <span>⚡</span>
+                <span>한투 빠른 주문</span>
+              </button>
+            </div>
           </div>
           <div class="overflow-x-auto max-h-[350px] overflow-y-auto pr-1">
             <table class="w-full text-left text-xs">
@@ -231,7 +239,8 @@
                   <th class="py-2.5 px-3 rounded-l-lg">종목명</th>
                   <th class="py-2.5 px-3">티커</th>
                   <th class="py-2.5 px-3 text-right">평가금액</th>
-                  <th class="py-2.5 px-3 text-right rounded-r-lg">비중(%)</th>
+                  <th class="py-2.5 px-3 text-right">비중(%)</th>
+                  <th class="py-2.5 px-3 text-center rounded-r-lg">주문</th>
                 </tr>
               </thead>
               <tbody id="holdingsTableBody" class="divide-y divide-slate-800/60">
@@ -417,6 +426,104 @@
     </div>
 
   </main>
+
+  <!-- KIS Stock Order Modal -->
+  <div id="orderModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="card-glass bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl shadow-sky-500/10">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">🚀</span>
+          <div>
+            <h3 class="text-sm font-bold text-slate-100">한국투자증권(KIS) 원클릭 주문</h3>
+            <p class="text-[10px] text-slate-400">GitHub Actions 클라우드 러너를 통한 서버리스 직통 체결</p>
+          </div>
+        </div>
+        <button onclick="closeOrderModal()" class="text-slate-400 hover:text-slate-200 text-lg">✕</button>
+      </div>
+
+      <!-- Target Stock Info -->
+      <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60 flex items-center justify-between">
+        <div>
+          <span id="orderStockName" class="text-xs font-bold text-slate-200 block">엔비디아 (NVDA)</span>
+          <span class="text-[10px] text-slate-400">대상 종목</span>
+        </div>
+        <div class="text-right">
+          <input type="text" id="orderTicker" value="NVDA" class="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-xs font-mono font-bold text-sky-400 focus:outline-none focus:border-sky-500 uppercase">
+        </div>
+      </div>
+
+      <!-- Buy / Sell Tabs -->
+      <div class="flex rounded-xl bg-slate-800/80 p-1 border border-slate-700">
+        <button type="button" id="tabBuy" onclick="setOrderType('BUY')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-rose-600 text-white shadow-md shadow-rose-600/30">
+          매수 (BUY)
+        </button>
+        <button type="button" id="tabSell" onclick="setOrderType('SELL')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">
+          매도 (SELL)
+        </button>
+      </div>
+
+      <!-- Quantity Selection -->
+      <div class="space-y-1.5 text-xs">
+        <div class="flex items-center justify-between">
+          <label class="font-semibold text-slate-300">주문 수량</label>
+          <span class="text-[10px] text-slate-400">단위: 주</span>
+        </div>
+        <div class="flex space-x-2">
+          <button type="button" onclick="adjustOrderQty(-1)" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold hover:bg-slate-700 text-sm">-</button>
+          <input type="number" id="orderQty" value="1" min="1" max="10000" class="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-2 text-center text-slate-100 font-mono font-bold text-base focus:outline-none focus:border-sky-500">
+          <button type="button" onclick="adjustOrderQty(1)" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold hover:bg-slate-700 text-sm">+</button>
+        </div>
+        <div class="flex space-x-1.5 pt-1">
+          <button type="button" onclick="setOrderQty(1)" class="flex-1 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700/60">+1주</button>
+          <button type="button" onclick="setOrderQty(5)" class="flex-1 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700/60">+5주</button>
+          <button type="button" onclick="setOrderQty(10)" class="flex-1 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700/60">+10주</button>
+        </div>
+      </div>
+
+      <!-- Order Price Mode (Market vs Limit) -->
+      <div class="space-y-1.5 text-xs">
+        <div class="flex items-center justify-between">
+          <label class="font-semibold text-slate-300">주문 가격</label>
+          <div class="flex items-center space-x-2 text-[11px]">
+            <label class="cursor-pointer flex items-center space-x-1">
+              <input type="radio" name="priceMode" value="MARKET" checked onchange="togglePriceMode(this.value)" class="text-sky-500">
+              <span class="text-slate-300">시장가</span>
+            </label>
+            <label class="cursor-pointer flex items-center space-x-1">
+              <input type="radio" name="priceMode" value="LIMIT" onchange="togglePriceMode(this.value)" class="text-sky-500">
+              <span class="text-slate-300">지정가</span>
+            </label>
+          </div>
+        </div>
+        <div id="limitPriceBox" class="hidden">
+          <input type="number" id="orderPrice" placeholder="지정가 입력 (달러 또는 원화)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-center text-slate-100 font-mono text-xs focus:outline-none focus:border-sky-500">
+        </div>
+      </div>
+
+      <!-- Status Progress Box -->
+      <div id="orderStatusBox" class="hidden p-3.5 rounded-xl bg-slate-800 border border-slate-700 space-y-1.5 text-xs">
+        <div class="flex items-center space-x-2">
+          <div id="orderSpinner" class="animate-spin w-4 h-4 border-2 border-sky-400 border-t-transparent rounded-full"></div>
+          <span id="orderStatusTitle" class="font-bold text-sky-400">주문 접수 중...</span>
+        </div>
+        <p id="orderStatusDesc" class="text-[11px] text-slate-400 leading-relaxed"></p>
+      </div>
+
+      <!-- Submit Buttons -->
+      <div class="flex space-x-2 pt-2">
+        <button type="button" id="btnSubmitOrder" onclick="sendKisOrder()" class="flex-1 py-3 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center space-x-1.5">
+          <span>🚀</span>
+          <span id="btnSubmitText">한투 주문 즉시 전송</span>
+        </button>
+        <button type="button" onclick="closeOrderModal()" class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">
+          취소
+        </button>
+      </div>
+
+    </div>
+  </div>
 
   <!-- Settings Modal (GitHub Token & Gemini Key) -->
   <div id="settingsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -792,10 +899,16 @@
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-800/40 transition-colors";
         tr.innerHTML = `
-          <td class="py-2 px-3 font-semibold text-slate-200">${p.stock_name}</td>
-          <td class="py-2 px-3 font-mono text-slate-400">${p.stock_code}</td>
-          <td class="py-2 px-3 text-right font-medium text-slate-200">₩${Number(p.eval_amount).toLocaleString()}</td>
-          <td class="py-2 px-3 text-right font-bold text-sky-400">${p.weight_pct.toFixed(1)}%</td>
+          <td class="py-2.5 px-3 font-semibold text-slate-200">${p.stock_name}</td>
+          <td class="py-2.5 px-3 font-mono text-slate-400">${p.stock_code}</td>
+          <td class="py-2.5 px-3 text-right font-medium text-slate-200">₩${Number(p.eval_amount).toLocaleString()}</td>
+          <td class="py-2.5 px-3 text-right font-bold text-sky-400">${p.weight_pct.toFixed(1)}%</td>
+          <td class="py-2.5 px-3 text-center">
+            <button onclick="openOrderModal('${p.stock_code}', '${p.stock_name.replace(/'/g, "\\'")}')" class="px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-sky-300 border border-sky-500/30 text-[11px] font-bold transition-all flex items-center justify-center space-x-1 mx-auto">
+              <span>⚡</span>
+              <span>주문</span>
+            </button>
+          </td>
         `;
         tbody.appendChild(tr);
       });
@@ -1430,6 +1543,161 @@
       };
 
       deepChatInitialized = true;
+    }
+
+    // -------------------------------------------------------------
+    // 9. KIS Open API & GitHub Actions Serverless Order Execution
+    // -------------------------------------------------------------
+    let currentOrderType = 'BUY';
+    let currentPriceMode = 'MARKET';
+
+    function openOrderModal(stockCode, stockName) {
+      const modal = document.getElementById('orderModal');
+      const tickerInput = document.getElementById('orderTicker');
+      const nameLabel = document.getElementById('orderStockName');
+
+      if (stockCode) {
+        tickerInput.value = stockCode;
+        nameLabel.innerText = stockName || stockCode;
+      } else {
+        tickerInput.value = 'NVDA';
+        nameLabel.innerText = '엔비디아 (NVDA)';
+      }
+
+      document.getElementById('orderQty').value = '1';
+      document.getElementById('orderPrice').value = '';
+      setOrderType('BUY');
+      togglePriceMode('MARKET');
+      document.getElementById('orderStatusBox').classList.add('hidden');
+      document.getElementById('btnSubmitOrder').disabled = false;
+      modal.classList.remove('hidden');
+    }
+
+    function closeOrderModal() {
+      document.getElementById('orderModal').classList.add('hidden');
+    }
+
+    function setOrderType(type) {
+      currentOrderType = type;
+      const btnBuy = document.getElementById('tabBuy');
+      const btnSell = document.getElementById('tabSell');
+      const btnSubmit = document.getElementById('btnSubmitOrder');
+      const submitText = document.getElementById('btnSubmitText');
+
+      if (type === 'BUY') {
+        btnBuy.className = "flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-rose-600 text-white shadow-md shadow-rose-600/30";
+        btnSell.className = "flex-1 py-2 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
+        btnSubmit.className = "flex-1 py-3 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center space-x-1.5";
+        submitText.innerText = "한투 매수 즉시 전송";
+      } else {
+        btnSell.className = "flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-sky-600 text-white shadow-md shadow-sky-600/30";
+        btnBuy.className = "flex-1 py-2 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
+        btnSubmit.className = "flex-1 py-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-sky-600/20 transition-all flex items-center justify-center space-x-1.5";
+        submitText.innerText = "한투 매도 즉시 전송";
+      }
+    }
+
+    function adjustOrderQty(delta) {
+      const input = document.getElementById('orderQty');
+      let val = parseInt(input.value) || 1;
+      val = Math.max(1, val + delta);
+      input.value = val;
+    }
+
+    function setOrderQty(val) {
+      document.getElementById('orderQty').value = val;
+    }
+
+    function togglePriceMode(mode) {
+      currentPriceMode = mode;
+      const box = document.getElementById('limitPriceBox');
+      const radioMarket = document.querySelector('input[name="priceMode"][value="MARKET"]');
+      const radioLimit = document.querySelector('input[name="priceMode"][value="LIMIT"]');
+
+      if (mode === 'MARKET') {
+        box.classList.add('hidden');
+        if (radioMarket) radioMarket.checked = true;
+      } else {
+        box.classList.remove('hidden');
+        if (radioLimit) radioLimit.checked = true;
+      }
+    }
+
+    async function sendKisOrder() {
+      const ticker = document.getElementById('orderTicker').value.trim().toUpperCase();
+      const qty = document.getElementById('orderQty').value.trim();
+      const price = currentPriceMode === 'MARKET' ? '0' : (document.getElementById('orderPrice').value.trim() || '0');
+
+      if (!ticker) {
+        alert("종목 티커를 입력해 주세요.");
+        return;
+      }
+
+      if (!qty || parseInt(qty) <= 0) {
+        alert("수량은 1주 이상이어야 합니다.");
+        return;
+      }
+
+      const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
+      const token = localStorage.getItem('valiant_gh_token');
+
+      if (!token) {
+        openSettingsModal();
+        alert("주문 전송을 위해 GitHub PAT 토큰이 필요합니다. 상단 ⚙️ 설정에서 토큰을 입력해 주세요!");
+        return;
+      }
+
+      const statusBox = document.getElementById('orderStatusBox');
+      const statusTitle = document.getElementById('orderStatusTitle');
+      const statusDesc = document.getElementById('orderStatusDesc');
+      const submitBtn = document.getElementById('btnSubmitOrder');
+
+      statusBox.classList.remove('hidden');
+      submitBtn.disabled = true;
+      statusTitle.innerText = "⏳ GitHub Actions 클라우드 러너 가동 중...";
+      statusTitle.className = "font-bold text-sky-400";
+      statusDesc.innerText = `한투 거래소로 ${ticker} ${qty}주 ${currentOrderType} 주문 신호를 전송하고 있습니다 (약 3~5초 소요)...`;
+
+      try {
+        // GitHub Actions workflow_dispatch API 호출
+        const dispatchUrl = `https://api.github.com/repos/${repo}/actions/workflows/kis_order.yml/dispatches`;
+        const res = await fetch(dispatchUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ref: 'master',
+            inputs: {
+              ticker: ticker,
+              qty: String(qty),
+              order_type: currentOrderType,
+              market: 'AUTO',
+              price: String(price)
+            }
+          })
+        });
+
+        if (res.status === 204 || res.ok) {
+          statusTitle.innerText = "🎉 [접수 완료] 한투 주문이 성공적으로 전송되었습니다!";
+          statusTitle.className = "font-bold text-emerald-400";
+          statusDesc.innerHTML = `
+            <strong>${ticker}</strong> ${qty}주 <strong>${currentOrderType === 'BUY' ? '매수' : '매도'}</strong> (${currentPriceMode === 'MARKET' ? '시장가' : price + '원/달러'}) 주문이 한투 서버리스 러너에 접수되었습니다.<br>
+            <span class="text-slate-400 mt-1 block">GitHub Actions 탭에서 실시간 체결 로그를 확인하실 수 있습니다.</span>
+          `;
+          submitBtn.disabled = false;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `HTTP ${res.status}`);
+        }
+      } catch (err) {
+        statusTitle.innerText = "❌ 주문 전송 실패";
+        statusTitle.className = "font-bold text-rose-400";
+        statusDesc.innerText = `오류: ${err.message}. GitHub 저장소 설정에서 KIS_APP_KEY, KIS_APP_SECRET 등의 Secrets가 등록되어 있는지 확인해 주세요.`;
+        submitBtn.disabled = false;
+      }
     }
   </script>
 </body>
