@@ -54,6 +54,73 @@
 </head>
 <body class="min-h-screen pb-20 md:pb-8 flex flex-col">
 
+  <!-- Master PIN Vault Lock Screen Overlay -->
+  <div id="vaultLockOverlay" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 transition-all duration-300">
+    <div class="card-glass bg-slate-900/90 border border-slate-800 rounded-3xl max-w-sm w-full p-7 text-center space-y-5 shadow-2xl shadow-sky-500/10">
+      
+      <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-2xl shadow-lg shadow-indigo-500/30">
+        💎
+      </div>
+      
+      <div>
+        <h2 class="text-lg font-bold text-slate-100 tracking-tight">VALIANT ASSET VAULT</h2>
+        <p class="text-xs text-slate-400 mt-1">자산 금고를 열려면 6자리 PIN을 입력하세요</p>
+      </div>
+
+      <!-- PIN Dots Indicator -->
+      <div class="flex justify-center items-center space-x-3 py-1">
+        <div id="pinDot0" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
+        <div id="pinDot1" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
+        <div id="pinDot2" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
+        <div id="pinDot3" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
+        <div id="pinDot4" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
+        <div id="pinDot5" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
+      </div>
+
+      <!-- Hidden Numeric Input for Auto Mobile/Desktop Keyboard -->
+      <div class="relative h-6">
+        <input 
+          type="password" 
+          id="pinInput" 
+          inputmode="numeric" 
+          pattern="[0-9]*" 
+          maxlength="6" 
+          autocomplete="one-time-code"
+          class="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10" 
+          oninput="handlePinInput(this.value)" 
+          autofocus
+        />
+        <div class="text-[11px] text-slate-500">화면 터치 또는 번호 패드로 입력하세요</div>
+      </div>
+
+      <!-- Status / Error message -->
+      <p id="lockStatusMsg" class="text-xs font-semibold text-rose-400 min-h-[18px]"></p>
+
+      <!-- Keypad (모바일/터치용 키패드) -->
+      <div class="grid grid-cols-3 gap-2 pt-1">
+        <button onclick="pressPinKey('1')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">1</button>
+        <button onclick="pressPinKey('2')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">2</button>
+        <button onclick="pressPinKey('3')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">3</button>
+        <button onclick="pressPinKey('4')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">4</button>
+        <button onclick="pressPinKey('5')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">5</button>
+        <button onclick="pressPinKey('6')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">6</button>
+        <button onclick="pressPinKey('7')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">7</button>
+        <button onclick="pressPinKey('8')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">8</button>
+        <button onclick="pressPinKey('9')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">9</button>
+        <button onclick="clearPinInput()" class="py-3 rounded-xl bg-slate-800/40 hover:bg-slate-700 text-xs font-semibold text-slate-400">초기화</button>
+        <button onclick="pressPinKey('0')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">0</button>
+        <button onclick="deletePinKey()" class="py-3 rounded-xl bg-slate-800/40 hover:bg-slate-700 text-sm font-semibold text-slate-400">⌫</button>
+      </div>
+
+      <!-- Remember device option -->
+      <div class="flex items-center justify-center space-x-2 pt-1 text-[11px] text-slate-400">
+        <input type="checkbox" id="rememberSessionCheck" checked class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0">
+        <label for="rememberSessionCheck">이 기기에서 30일 동안 로그인 유지</label>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Top Navigation Bar -->
   <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
     <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -65,7 +132,7 @@
           <h1 class="text-base font-bold text-slate-100 flex items-center space-x-2">
             <span>VALIANT ASSETS</span>
             <span id="syncStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              클라우드 연동됨
+              보안 금고 잠금해제됨
             </span>
           </h1>
           <p class="text-xs text-slate-400">통합 포트폴리오 관제탑</p>
@@ -73,7 +140,10 @@
       </div>
 
       <div class="flex items-center space-x-2">
-        <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700" title="API 및 GitHub 설정">
+        <button onclick="lockVaultNow()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700" title="금고 즉시 잠금">
+          🔒
+        </button>
+        <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700" title="API 및 보안 설정">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
         </button>
       </div>
@@ -88,7 +158,7 @@
       <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
         <span class="text-xs font-medium text-slate-400">총 순자산 (Net Worth)</span>
         <div class="my-1">
-          <div id="kpiNetWorth" class="text-xl md:text-2xl font-black text-slate-100 tracking-tight">₩710,869,593</div>
+          <div id="kpiNetWorth" class="text-xl md:text-2xl font-black text-slate-100 tracking-tight">••••••••</div>
         </div>
         <span id="kpiChangeSub" class="text-[11px] text-sky-400 font-medium">더리치 실데이터 트래킹</span>
       </div>
@@ -96,25 +166,25 @@
       <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
         <span class="text-xs font-medium text-slate-400">보유 현금 (예수금)</span>
         <div class="my-1">
-          <div id="kpiCash" class="text-xl md:text-2xl font-black text-emerald-400 tracking-tight">₩20,768,091</div>
+          <div id="kpiCash" class="text-xl md:text-2xl font-black text-emerald-400 tracking-tight">••••••••</div>
         </div>
-        <span id="kpiCashRatio" class="text-[11px] text-slate-400">비중 2.92% (원화/달러)</span>
+        <span id="kpiCashRatio" class="text-[11px] text-slate-400">비중 --%</span>
       </div>
 
       <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
         <span class="text-xs font-medium text-slate-400">트래킹 종목 수</span>
         <div class="my-1">
-          <div id="kpiHoldingsCount" class="text-xl md:text-2xl font-black text-indigo-400 tracking-tight">20개 종목</div>
+          <div id="kpiHoldingsCount" class="text-xl md:text-2xl font-black text-indigo-400 tracking-tight">--개 종목</div>
         </div>
-        <span class="text-[11px] text-slate-400">상위 5종목 비중 58.6%</span>
+        <span class="text-[11px] text-slate-400">보안 금고 해제 필요</span>
       </div>
 
       <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
         <span class="text-xs font-medium text-slate-400">월 예상 배당금 (추정)</span>
         <div class="my-1">
-          <div class="text-xl md:text-2xl font-black text-amber-400 tracking-tight">₩350,000</div>
+          <div id="kpiDividends" class="text-xl md:text-2xl font-black text-amber-400 tracking-tight">••••••••</div>
         </div>
-        <span class="text-[11px] text-slate-400">연간 약 420만원 (시가배당률 0.6%)</span>
+        <span class="text-[11px] text-slate-400">연간 배당 추정치</span>
       </div>
     </div>
 
@@ -378,6 +448,20 @@
           <p id="geminiTestStatus" class="text-[11px] mt-1.5 hidden"></p>
           <p class="text-[10px] text-slate-400 mt-1"><a href="https://aistudio.google.com" target="_blank" class="text-sky-400 underline">aistudio.google.com</a>에서 카드 없이 1초 발급 (이미지 자동인식 및 AI 비서용)</p>
         </div>
+
+        <div class="pt-2 border-t border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="block font-semibold text-slate-200">🔐 금고 PIN 번호 변경 (6자리)</label>
+            <span id="pinChangeStatus" class="text-[11px] font-semibold hidden"></span>
+          </div>
+          <div class="flex space-x-2">
+            <input type="password" id="settingNewPin" placeholder="새로운 6자리 PIN" maxlength="6" inputmode="numeric" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 text-center font-mono tracking-widest text-sm focus:outline-none focus:border-sky-500">
+            <button type="button" onclick="changeVaultPin()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs">
+              PIN 변경
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-400">PIN 변경 시 새 비밀번호로 금고 파일이 즉시 재암호화됩니다.</p>
+        </div>
       </div>
 
       <div class="flex space-x-2 pt-2">
@@ -414,82 +498,284 @@
   <!-- Embedded Real Datasets & Client-Side Engine -->
   <script>
     // -------------------------------------------------------------
-    // 1. Initial Embedded Real Fallback Datasets (더리치 7.1억 실데이터)
+    // 1. In-Memory Decrypted Datasets (소스코드 내 실데이터 0바이트)
     // -------------------------------------------------------------
     let currentPortfolio = {
-      total_net_worth: 710869593,
-      total_cash: 20768091,
-      cash_ratio: 0.0292,
-      positions: [
-        { stock_code: "NVDA", stock_name: "엔비디아 (NVDA)", eval_amount: 130089135, weight_pct: 18.3, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "GOOGL", stock_name: "알파벳 A (GOOGL)", eval_amount: 91702177, weight_pct: 12.9, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "TSLA", stock_name: "테슬라 (TSLA)", eval_amount: 86726090, weight_pct: 12.2, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "AAPL", stock_name: "애플 (AAPL)", eval_amount: 65400002, weight_pct: 9.2, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "CCL", stock_name: "카니발 (CCL)", eval_amount: 42652175, weight_pct: 6.0, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "005930", stock_name: "삼성전자 (005930)", eval_amount: 41230436, weight_pct: 5.8, asset_class: "DOMESTIC_STOCK" },
-        { stock_code: "QQQ", stock_name: "인베스코 QQQ (QQQ)", eval_amount: 34121740, weight_pct: 4.8, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "SSO", stock_name: "프로셰어즈 S&P500 2X (SSO)", eval_amount: 34121740, weight_pct: 4.8, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "133690", stock_name: "TIGER 미국나스닥100", eval_amount: 24169566, weight_pct: 3.4, asset_class: "DOMESTIC_ETF" },
-        { stock_code: "DAL", stock_name: "델타항공 (DAL)", eval_amount: 22747827, weight_pct: 3.2, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "BA", stock_name: "보잉 (BA)", eval_amount: 22036957, weight_pct: 3.1, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "360750", stock_name: "TIGER 미국S&P500", eval_amount: 15639131, weight_pct: 2.2, asset_class: "DOMESTIC_ETF" },
-        { stock_code: "SPY", stock_name: "SPDR S&P 500 ETF (SPY)", eval_amount: 13506522, weight_pct: 1.9, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "MAR", stock_name: "메리어트 인터내셔널 (MAR)", eval_amount: 12795652, weight_pct: 1.8, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "FIDELITY", stock_name: "피델리티 글로벌 펀드/ETF", eval_amount: 10663043, weight_pct: 1.5, asset_class: "DOMESTIC_ETF" },
-        { stock_code: "SAMSUNG_KOR", stock_name: "삼성한국형수익증권/펀드", eval_amount: 10663043, weight_pct: 1.5, asset_class: "DOMESTIC_STOCK" },
-        { stock_code: "US_AI_BIG", stock_name: "미국AI빅테크 포트폴리오", eval_amount: 9952174, weight_pct: 1.4, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "USD_CURRENCY", stock_name: "달러 예수금/환전보유 (USD)", eval_amount: 9241304, weight_pct: 1.3, asset_class: "CASH" },
-        { stock_code: "META", stock_name: "메타 플랫폼스 (META)", eval_amount: 8530435, weight_pct: 1.2, asset_class: "FOREIGN_STOCK" },
-        { stock_code: "OTHERS", stock_name: "기타 분산 포트폴리오 (3.6%)", eval_amount: 25591305, weight_pct: 3.6, asset_class: "FOREIGN_STOCK" }
-      ]
+      total_net_worth: 0,
+      total_cash: 0,
+      cash_ratio: 0,
+      positions: []
     };
 
-    let historyRecords = [
-      { timestamp: "2026-06-23", total_net_worth: 838563472, total_cash: 21800449, cash_ratio: 0.026, note: "6월 23일 기준 포트폴리오 세팅 (보유 종목 확정)" },
-      { timestamp: "2026-07-31", total_net_worth: 758326489, total_cash: 20994155, cash_ratio: 0.0277, note: "7월 말 월간 결산 (환율 및 기술주 시세 반영)" },
-      { timestamp: "2026-08-31", total_net_worth: 753680795, total_cash: 20698117, cash_ratio: 0.0275, note: "8월 말 월간 결산 (장기 보유 유지)" },
-      { timestamp: "2026-09-30", total_net_worth: 753076775, total_cash: 20698117, cash_ratio: 0.027, note: "9월 말 월간 결산 (장기 보유 유지)" },
-      { timestamp: "2026-10-30", total_net_worth: 710869593, total_cash: 20768091, cash_ratio: 0.0292, note: "더리치 실데이터 동기화 및 3사 통합 결산" }
-    ];
-
+    let historyRecords = [];
     let donutChartInstance = null;
     let historyChartInstance = null;
     let tempParsedPositions = null;
+    let currentUnlockedPin = null;
+    let currentPinBuffer = '';
 
-    function loadSavedPortfolioData() {
+    // -------------------------------------------------------------
+    // Web Crypto API 256-bit AES-GCM Helpers
+    // -------------------------------------------------------------
+    function hexToBuf(hex) {
+      const bytes = new Uint8Array(Math.ceil(hex.length / 2));
+      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+      return bytes;
+    }
+
+    function bufToHex(buf) {
+      return Array.prototype.map.call(new Uint8Array(buf), x => ('00' + x.toString(16)).slice(-2)).join('');
+    }
+
+    async function deriveKey(pin, saltBuf) {
+      const enc = new TextEncoder();
+      const keyMaterial = await window.crypto.subtle.importKey(
+        "raw",
+        enc.encode(pin),
+        { name: "PBKDF2" },
+        false,
+        ["deriveKey"]
+      );
+      return await window.crypto.subtle.deriveKey(
+        {
+          name: "PBKDF2",
+          salt: saltBuf,
+          iterations: 100000,
+          hash: "SHA-256"
+        },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
+      );
+    }
+
+    async function decryptVaultData(vaultJson, pin) {
+      const salt = hexToBuf(vaultJson.salt);
+      const iv = hexToBuf(vaultJson.iv);
+      const rawCipher = hexToBuf(vaultJson.ciphertext);
+      const key = await deriveKey(pin, salt);
+      const decryptedBuf = await window.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        rawCipher
+      );
+      const dec = new TextDecoder();
+      return JSON.parse(dec.decode(decryptedBuf));
+    }
+
+    async function encryptVaultData(vaultData, pin) {
+      const salt = window.crypto.getRandomValues(new Uint8Array(16));
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKey(pin, salt);
+      const enc = new TextEncoder();
+      const plaintextBuf = enc.encode(JSON.stringify(vaultData));
+      const cipherBuf = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        plaintextBuf
+      );
+      return {
+        v: 1,
+        salt: bufToHex(salt),
+        iv: bufToHex(iv),
+        ciphertext: bufToHex(cipherBuf)
+      };
+    }
+
+    // -------------------------------------------------------------
+    // PIN Keypad & Lock Screen Logic
+    // -------------------------------------------------------------
+    function updatePinDots() {
+      for (let i = 0; i < 6; i++) {
+        const dot = document.getElementById(`pinDot${i}`);
+        if (!dot) continue;
+        if (i < currentPinBuffer.length) {
+          dot.className = "w-3.5 h-3.5 rounded-full bg-sky-400 border-2 border-sky-400 transition-all duration-150 scale-110 shadow-lg shadow-sky-400/50";
+        } else {
+          dot.className = "w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150";
+        }
+      }
+    }
+
+    function pressPinKey(num) {
+      if (currentPinBuffer.length >= 6) return;
+      currentPinBuffer += num;
+      updatePinDots();
+      const pinInput = document.getElementById('pinInput');
+      if (pinInput) pinInput.value = currentPinBuffer;
+
+      if (currentPinBuffer.length === 6) {
+        unlockVault(currentPinBuffer);
+      }
+    }
+
+    function deletePinKey() {
+      if (currentPinBuffer.length > 0) {
+        currentPinBuffer = currentPinBuffer.slice(0, -1);
+        updatePinDots();
+        const pinInput = document.getElementById('pinInput');
+        if (pinInput) pinInput.value = currentPinBuffer;
+      }
+    }
+
+    function clearPinInput() {
+      currentPinBuffer = '';
+      updatePinDots();
+      const pinInput = document.getElementById('pinInput');
+      if (pinInput) pinInput.value = '';
+      const statusMsg = document.getElementById('lockStatusMsg');
+      if (statusMsg) statusMsg.innerText = '';
+    }
+
+    function handlePinInput(val) {
+      const sanitized = val.replace(/[^0-9]/g, '').slice(0, 6);
+      currentPinBuffer = sanitized;
+      updatePinDots();
+      if (currentPinBuffer.length === 6) {
+        unlockVault(currentPinBuffer);
+      }
+    }
+
+    async function unlockVault(pin) {
+      const statusMsg = document.getElementById('lockStatusMsg');
+      statusMsg.innerText = "⏳ 보안 금고 해독 중...";
+      statusMsg.className = "text-xs font-semibold text-sky-400 min-h-[18px]";
+
       try {
-        const savedPortfolio = localStorage.getItem('valiant_current_portfolio');
-        if (savedPortfolio) {
-          const parsed = JSON.parse(savedPortfolio);
-          if (parsed && parsed.positions && parsed.positions.length > 0) {
-            currentPortfolio = parsed;
-          }
+        let vaultJson = null;
+        // 1. 로컬 캐시 또는 원격 data/vault.json 파일 fetch
+        const localVault = localStorage.getItem('valiant_vault_json');
+        if (localVault) {
+          try { vaultJson = JSON.parse(localVault); } catch(e) {}
         }
-        const savedHistory = localStorage.getItem('valiant_history_records');
-        if (savedHistory) {
-          const parsedH = JSON.parse(savedHistory);
-          if (Array.isArray(parsedH) && parsedH.length > 0) {
-            historyRecords = parsedH;
-          }
+        if (!vaultJson) {
+          const res = await fetch('./data/vault.json?t=' + Date.now());
+          if (!res.ok) throw new Error("금고 데이터(vault.json)를 불러올 수 없습니다.");
+          vaultJson = await res.json();
         }
-      } catch (e) {
-        console.warn("포트폴리오 로컬 복원 건너뜀:", e);
+
+        // 2. Web Crypto API 복호화
+        const decrypted = await decryptVaultData(vaultJson, pin);
+        if (!decrypted || !decrypted.portfolio) {
+          throw new Error("올바른 자산 데이터 형식이 아닙니다.");
+        }
+
+        // 3. 복호화 성공 -> 메모리에 탑재
+        currentPortfolio = decrypted.portfolio;
+        historyRecords = decrypted.history || [];
+        currentUnlockedPin = pin;
+        localStorage.setItem('valiant_vault_json', JSON.stringify(vaultJson));
+
+        // 4. 자동 잠금 해제 유지 옵션
+        const remember = document.getElementById('rememberSessionCheck')?.checked;
+        if (remember) {
+          localStorage.setItem('valiant_saved_pin', pin);
+        }
+
+        // 5. 대시보드 렌더링
+        renderKPIs();
+        renderHoldingsTable();
+        renderHistoryTable();
+        renderDonutChart();
+        renderHistoryTrendChart();
+        initDeepChat();
+
+        // 6. 잠금 화면 해제
+        const overlay = document.getElementById('vaultLockOverlay');
+        overlay.classList.add('opacity-0', 'pointer-events-none');
+        setTimeout(() => overlay.classList.add('hidden'), 300);
+
+      } catch (err) {
+        console.error("금고 해제 실패:", err);
+        statusMsg.innerText = "❌ PIN 번호가 일치하지 않습니다.";
+        statusMsg.className = "text-xs font-semibold text-rose-400 min-h-[18px]";
+        setTimeout(() => {
+          clearPinInput();
+        }, 500);
+      }
+    }
+
+    function lockVaultNow() {
+      localStorage.removeItem('valiant_saved_pin');
+      currentUnlockedPin = null;
+      currentPortfolio = { total_net_worth: 0, total_cash: 0, cash_ratio: 0, positions: [] };
+      historyRecords = [];
+      clearPinInput();
+      renderKPIs();
+
+      const overlay = document.getElementById('vaultLockOverlay');
+      overlay.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
+      const pinInput = document.getElementById('pinInput');
+      if (pinInput) pinInput.focus();
+    }
+
+    async function changeVaultPin() {
+      const newPinInput = document.getElementById('settingNewPin');
+      const newPin = newPinInput.value.trim();
+      const statusEl = document.getElementById('pinChangeStatus');
+      statusEl.classList.remove('hidden');
+
+      if (!/^[0-9]{6}$/.test(newPin)) {
+        statusEl.innerText = "❌ 6자리 숫자만 가능합니다.";
+        statusEl.className = "text-[11px] font-bold text-rose-400";
+        return;
+      }
+
+      if (!currentUnlockedPin || !currentPortfolio.positions.length) {
+        statusEl.innerText = "❌ 금고가 해제되어 있지 않습니다.";
+        statusEl.className = "text-[11px] font-bold text-rose-400";
+        return;
+      }
+
+      try {
+        statusEl.innerText = "⏳ 새 PIN으로 암호화 중...";
+        statusEl.className = "text-[11px] font-bold text-sky-400";
+
+        const vaultData = {
+          portfolio: currentPortfolio,
+          history: historyRecords
+        };
+
+        const newEncryptedVault = await encryptVaultData(vaultData, newPin);
+        currentUnlockedPin = newPin;
+        localStorage.setItem('valiant_saved_pin', newPin);
+        localStorage.setItem('valiant_vault_json', JSON.stringify(newEncryptedVault));
+
+        // GitHub 토큰이 설정되어 있다면 data/vault.json 파일 직접 커밋
+        const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
+        const token = localStorage.getItem('valiant_gh_token');
+        if (repo && token) {
+          await pushJsonToGitHub(repo, 'data/vault.json', newEncryptedVault, token, `chore: update encrypted vault PIN`);
+          statusEl.innerText = "✅ PIN 변경 & GitHub 원격 금고 암호화 완료!";
+        } else {
+          statusEl.innerText = "✅ 로컬 PIN 변경 완료! (토큰 설정 시 GitHub 동기화)";
+        }
+        statusEl.className = "text-[11px] font-bold text-emerald-400";
+        newPinInput.value = '';
+      } catch (err) {
+        statusEl.innerText = `❌ 오류: ${err.message}`;
+        statusEl.className = "text-[11px] font-bold text-rose-400";
       }
     }
 
     // -------------------------------------------------------------
     // 2. Initial Setup & Render
     // -------------------------------------------------------------
-    window.addEventListener('DOMContentLoaded', () => {
-      loadSavedPortfolioData();
+    window.addEventListener('DOMContentLoaded', async () => {
       loadSettings();
       loadModelAndReasoningSettings();
-      renderKPIs();
-      renderHoldingsTable();
-      renderHistoryTable();
-      renderDonutChart();
-      renderHistoryTrendChart();
-      initDeepChat();
+
+      // 저장된 PIN이 있다면 자동 잠금 해제 시도
+      const savedPin = localStorage.getItem('valiant_saved_pin');
+      if (savedPin && savedPin.length === 6) {
+        currentPinBuffer = savedPin;
+        updatePinDots();
+        await unlockVault(savedPin);
+      } else {
+        const pinInput = document.getElementById('pinInput');
+        if (pinInput) pinInput.focus();
+      }
     });
 
     function renderKPIs() {
@@ -999,24 +1285,29 @@
       renderDonutChart();
       renderHistoryTrendChart();
 
-      if (!repo || !token) {
-        alert("로컬 화면에 반영되었습니다! (GitHub 저장소와 토큰을 설정하시면 Private Repo로 자동 Git 커밋까지 전송됩니다)");
-        cancelParsedData();
-        switchTab('allocation');
-        return;
+      // 암호화된 vault 파일로 저장 및 GitHub 원격 커밋
+      if (currentUnlockedPin) {
+        try {
+          const vaultData = {
+            portfolio: currentPortfolio,
+            history: historyRecords
+          };
+          const encryptedVault = await encryptVaultData(vaultData, currentUnlockedPin);
+          localStorage.setItem('valiant_vault_json', JSON.stringify(encryptedVault));
+
+          if (repo && token) {
+            await pushJsonToGitHub(repo, 'data/vault.json', encryptedVault, token, `chore: update encrypted vault snapshot (${today})`);
+            alert("🎉 암호화된 자산 금고(vault.json)가 본인의 GitHub 저장소에 안전하게 Git 커밋되었습니다!");
+          } else {
+            alert("로컬 화면에 반영되었습니다! (GitHub 토큰을 설정하시면 원격 금고 파일로 자동 Git 커밋됩니다)");
+          }
+        } catch (e) {
+          console.warn("금고 암호화 커밋 오류:", e);
+        }
       }
 
-      try {
-        const path = "data/portfolio_history.json";
-        const commitMsg = `chore: update portfolio history via mobile Gemini Vision (${today})`;
-        await pushJsonToGitHub(repo, path, historyRecords, token, commitMsg);
-
-        alert("🎉 GitHub Private Repo에 새로운 자산 스냅샷이 성공적으로 Git 커밋되었습니다!");
-        cancelParsedData();
-        switchTab('allocation');
-      } catch (err) {
-        alert(`GitHub 커밋 중 오류: ${err.message}`);
-      }
+      cancelParsedData();
+      switchTab('allocation');
     }
 
     async function pushJsonToGitHub(repo, path, dataObj, token, message) {
