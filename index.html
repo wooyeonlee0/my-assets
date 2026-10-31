@@ -1194,9 +1194,9 @@
       const modelSelect = document.getElementById('chatModelSelect');
       const userSelected = (modelSelect ? modelSelect.value : null) || localStorage.getItem('valiant_selected_model') || 'gemini-2.5-flash';
       
-      // 안정적인 실존 모델 우선 순회
+      // 구글 공식 안정화 실존 모델 우선 순회
       const candidateModels = [userSelected];
-      ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.8-flash', 'gemini-4-argon'].forEach(m => {
+      ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'].forEach(m => {
         if (!candidateModels.includes(m)) candidateModels.push(m);
       });
 
@@ -1215,7 +1215,7 @@
 
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6000); // 6초 타임아웃 방어
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15초 타임아웃 넉넉히 확보
 
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey.trim()}`;
           let res = await fetch(url, {
@@ -1557,7 +1557,8 @@
       chatEl.connect = {
         handler: async (body, signals) => {
           try {
-            const geminiKey = localStorage.getItem('valiant_gemini_key');
+            const rawKey = localStorage.getItem('valiant_gemini_key');
+            const geminiKey = (rawKey && rawKey.trim() !== '' && rawKey !== 'null' && rawKey !== 'undefined') ? rawKey.trim() : null;
             if (!geminiKey) {
               signals.onResponse({
                 text: "⚠️ **Gemini API Key가 등록되지 않았습니다.**\n\n상단 우측 **⚙️ 설정** 버튼에서 Google Gemini API Key를 먼저 입력해 주세요! (Google AI Studio에서 무료로 1초 발급 가능합니다)"
@@ -1644,7 +1645,10 @@
 
           } catch (err) {
             console.error("[DeepChat Error]", err);
-            signals.onResponse({ error: `오류가 발생했습니다: ${err.message}` });
+            const keyPreview = geminiKey ? `${geminiKey.substring(0, 6)}...` : '미입력';
+            signals.onResponse({
+              text: `⚠️ **[Gemini AI 통신 오류]**\n\n• **사유**: ${err.message}\n• **현재 등록된 키**: \`${keyPreview}\`\n\n💡 **해결 방법**: 상단 우측 **⚙️ 설정** 버튼에서 Google Gemini API Key를 재입력하거나 [🧪 연결 테스트]를 눌러 키가 유효한지 확인해 주세요.`
+            });
           }
         }
       };
