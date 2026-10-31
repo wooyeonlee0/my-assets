@@ -1501,7 +1501,21 @@
 
 [지침]
 1. 사용자의 질문에 대해 7.1억 자산의 포트폴리오 비중, 거시경제 환경, 배당금/현금흐름, 세제 혜택(ISA/연금) 관점을 고려하여 전문적이고 친절하게 한국어로 조언하세요.
-2. 마크다운(Markdown) 포맷(볼드, 리스트, 표 등)을 적극 활용하여 핵심을 명확하고 읽기 편하게 정리해 주세요.`;
+2. 마크다운(Markdown) 포맷(볼드, 리스트, 표 등)을 적극 활용하여 핵심을 명확하고 읽기 편하게 정리해 주세요.
+3. [중요: 주식 주문 정제 & 원클릭 체결 지원]
+사용자가 특정 종목의 매수/매도 의사, 분할 매수, 비중 조절, 현금 확보, 리밸런싱에 대해 이야기하면:
+- 7.1억 포트폴리오 현황과 현금 비중을 감안해 적정 수량(예: 몇 주)을 논리적으로 산출해 추천해 주세요.
+- 사용자가 검토 후 즉시 실행할 수 있도록, 답변 맨 마지막에 반드시 아래 형식의 주문 태그를 정확히 포함해 주세요:
+:::kis_order
+{
+  "ticker": "종목코드(예: NVDA, TSLA, 005930)",
+  "name": "종목명(예: 엔비디아)",
+  "order_type": "BUY" 또는 "SELL",
+  "qty": 추천수량(양의정수),
+  "price": 0,
+  "reason": "추천 근거 요약"
+}
+:::`;
 
             // 직전 대화 기록(최근 6개)을 Gemini 대화 포맷으로 매핑
             const contents = [];
@@ -1533,7 +1547,14 @@
             }
 
             const replyText = data.candidates[0].content.parts[0].text;
-            signals.onResponse({ text: replyText });
+            
+            // 주문 태그(:::kis_order)를 감지하여 인터랙티브 액션 카드로 변환
+            if (replyText.includes(':::kis_order')) {
+              const formattedHtml = parseAiResponseToHtml(replyText);
+              signals.onResponse({ html: formattedHtml });
+            } else {
+              signals.onResponse({ text: replyText });
+            }
 
           } catch (err) {
             console.error("[DeepChat Error]", err);
@@ -1546,12 +1567,145 @@
     }
 
     // -------------------------------------------------------------
+    // AI Response Parser & Interactive KIS Order Action Card
+    // -------------------------------------------------------------
+    function parseAiResponseToHtml(rawReply) {
+      const orderRegex = /:::kis_order\s*(\{[\s\S]*?\})\s*:::/;
+      const match = rawReply.match(orderRegex);
+
+      let cleanText = rawReply;
+      let orderCardHtml = '';
+
+      if (match) {
+        cleanText = rawReply.replace(orderRegex, '').trim();
+        try {
+          const orderData = JSON.parse(match[1]);
+          const cardId = 'aiOrderCard_' + Math.random().toString(36).substr(2, 9);
+          const isBuy = (orderData.order_type || 'BUY').toUpperCase() === 'BUY';
+          const typeBadge = isBuy 
+            ? `<span class="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold text-[10px]">매수 (BUY)</span>`
+            : `<span class="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-400 border border-sky-500/30 font-bold text-[10px]">매도 (SELL)</span>`;
+
+          const buttonBg = isBuy
+            ? "bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white"
+            : "bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white";
+
+          orderCardHtml = `
+            <div id="${cardId}" class="mt-3.5 p-3.5 rounded-xl bg-slate-900 border border-indigo-500/40 shadow-lg shadow-indigo-500/10 space-y-2.5 text-xs text-left">
+              <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-base">🚀</span>
+                  <span class="font-bold text-slate-100">한투 AI 주문 제안 확인</span>
+                </div>
+                ${typeBadge}
+              </div>
+              <div class="flex items-center justify-between text-slate-300 py-1">
+                <div>
+                  <span class="font-bold text-slate-100 text-sm block">${orderData.name || orderData.ticker}</span>
+                  <span class="text-[10px] text-slate-400 font-mono">${orderData.ticker}</span>
+                </div>
+                <div class="text-right">
+                  <span class="text-base font-black text-amber-400">${orderData.qty}주</span>
+                  <span class="text-[10px] text-slate-400 block">${orderData.price == 0 ? '시장가 체결' : orderData.price + '원'}</span>
+                </div>
+              </div>
+              ${orderData.reason ? `<p class="text-[11px] text-slate-400 bg-slate-800/60 p-2 rounded-lg italic border border-slate-700/50">💡 AI 제안 근거: ${orderData.reason}</p>` : ''}
+              
+              <div id="${cardId}_action" class="flex space-x-2 pt-1">
+                <button type="button" onclick="window.triggerAiKisOrder('${cardId}', '${orderData.ticker}', '${(orderData.name || orderData.ticker).replace(/'/g, "\\'")}', ${orderData.qty}, '${orderData.order_type || 'BUY'}')" class="flex-1 py-2 px-3 ${buttonBg} rounded-lg font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer">
+                  <span>🚀</span>
+                  <span>한투에 이 주문 즉시 전송</span>
+                </button>
+                <button type="button" onclick="window.openOrderModal('${orderData.ticker}', '${(orderData.name || orderData.ticker).replace(/'/g, "\\'")}', ${orderData.qty}, '${orderData.order_type || 'BUY'}')" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 cursor-pointer">
+                  수량 수정
+                </button>
+              </div>
+            </div>
+          `;
+        } catch (e) {
+          console.warn("AI 주문 카드 파싱 실패:", e);
+        }
+      }
+
+      const markedText = (window.marked && typeof window.marked.parse === 'function')
+        ? window.marked.parse(cleanText)
+        : cleanText;
+
+      return `<div class="space-y-2 text-slate-200 text-xs leading-relaxed">${markedText}</div>` + orderCardHtml;
+    }
+
+    window.triggerAiKisOrder = async function(cardId, ticker, name, qty, orderType) {
+      const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
+      const token = localStorage.getItem('valiant_gh_token');
+
+      if (!token) {
+        openSettingsModal();
+        alert("한투 주문을 전송하려면 GitHub PAT 토큰이 필요합니다. 상단 ⚙️ 설정에서 토큰을 입력해 주세요!");
+        return;
+      }
+
+      const actionArea = document.getElementById(`${cardId}_action`);
+      if (actionArea) {
+        actionArea.innerHTML = `
+          <div class="w-full py-2 px-3 rounded-lg bg-indigo-950/60 border border-indigo-500/40 text-center text-xs text-sky-300 flex items-center justify-center space-x-2">
+            <div class="animate-spin w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full"></div>
+            <span>한투 거래소로 주문 전송 중... (약 3~5초)</span>
+          </div>
+        `;
+      }
+
+      try {
+        const dispatchUrl = `https://api.github.com/repos/${repo}/actions/workflows/kis_order.yml/dispatches`;
+        const res = await fetch(dispatchUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ref: 'master',
+            inputs: {
+              ticker: ticker,
+              qty: String(qty),
+              order_type: orderType,
+              market: 'AUTO',
+              price: '0'
+            }
+          })
+        });
+
+        if (res.status === 204 || res.ok) {
+          if (actionArea) {
+            actionArea.innerHTML = `
+              <div class="w-full py-2.5 px-3 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-center text-xs text-emerald-300 font-bold space-y-1">
+                <div>🎉 [체결 접수 완료] ${name}(${ticker}) ${qty}주 ${orderType === 'BUY' ? '매수' : '매도'} 주문 성공!</div>
+                <div class="text-[10px] text-emerald-400/80 font-normal">한투 KIS 서버리스 러너에 정상 접수되었습니다. (체결 로그는 GitHub Actions에서 확인 가능)</div>
+              </div>
+            `;
+          }
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `HTTP ${res.status}`);
+        }
+      } catch (err) {
+        if (actionArea) {
+          actionArea.innerHTML = `
+            <div class="w-full py-2 px-3 rounded-lg bg-rose-950/70 border border-rose-500/40 text-center text-xs text-rose-300 font-bold">
+              ❌ 주문 실패: ${err.message}
+            </div>
+          `;
+        }
+      }
+    };
+
+    // -------------------------------------------------------------
     // 9. KIS Open API & GitHub Actions Serverless Order Execution
     // -------------------------------------------------------------
     let currentOrderType = 'BUY';
     let currentPriceMode = 'MARKET';
 
-    function openOrderModal(stockCode, stockName) {
+    function openOrderModal(stockCode, stockName, defaultQty, defaultOrderType) {
       const modal = document.getElementById('orderModal');
       const tickerInput = document.getElementById('orderTicker');
       const nameLabel = document.getElementById('orderStockName');
@@ -1564,14 +1718,16 @@
         nameLabel.innerText = '엔비디아 (NVDA)';
       }
 
-      document.getElementById('orderQty').value = '1';
+      document.getElementById('orderQty').value = defaultQty ? String(defaultQty) : '1';
       document.getElementById('orderPrice').value = '';
-      setOrderType('BUY');
+      setOrderType(defaultOrderType ? defaultOrderType.toUpperCase() : 'BUY');
       togglePriceMode('MARKET');
       document.getElementById('orderStatusBox').classList.add('hidden');
       document.getElementById('btnSubmitOrder').disabled = false;
       modal.classList.remove('hidden');
     }
+
+    window.openOrderModal = openOrderModal;
 
     function closeOrderModal() {
       document.getElementById('orderModal').classList.add('hidden');
