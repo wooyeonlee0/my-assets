@@ -225,15 +225,15 @@
               </div>
               <p class="text-[10px] text-slate-400 hidden sm:block">터치 시 한투 API 주문 모달 호출</p>
             </div>
-            <!-- Focused 2-Button Action Bar -->
-            <div class="flex items-center space-x-1.5">
+            <!-- Desktop Action Bar (Mobile uses bottom sticky nav to avoid duplication) -->
+            <div class="hidden md:flex items-center space-x-1.5">
               <button onclick="importOrderFromClipboard()" class="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 shadow-sm active:scale-95" title="Gemini 제안 주문 클립보드에서 원클릭 불러오기">
                 <span>📥</span>
                 <span>불러오기</span>
               </button>
               <button id="btnHeaderBasket" onclick="openBasketModal()" class="px-2.5 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 shadow-sm active:scale-95">
                 <span>🛒</span>
-                <span class="hidden xs:inline">바스켓</span>
+                <span>바스켓</span>
                 <span id="basketCountBadge" class="ml-0.5 px-1.5 py-0.2 bg-indigo-500 text-white rounded-full text-[10px] font-bold">0</span>
               </button>
             </div>
@@ -550,13 +550,13 @@
 
   <!-- Settings Modal (GitHub Token & Gemini Key) -->
   <div id="settingsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="card-glass bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 space-y-5">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+    <div class="card-glass bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 max-h-[88vh] flex flex-col shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
         <h3 class="text-base font-bold text-slate-100">⚙️ 서버리스 연동 설정</h3>
-        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-200">✕</button>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-200 text-lg p-1">✕</button>
       </div>
 
-      <div class="space-y-4 text-xs">
+      <div class="flex-1 overflow-y-auto pr-1 space-y-4 text-xs">
         <div>
           <label class="block font-semibold text-slate-300 mb-1">GitHub 저장소 경로 (기본 설정됨)</label>
           <input type="text" id="settingGithubRepo" value="wooyeonlee0/my-assets" placeholder="wooyeonlee0/my-assets" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
@@ -590,12 +590,12 @@
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-300 mb-1">텔레그램 트레이딩 봇 Username (Deep Link 연동)</label>
+          <label class="block font-semibold text-slate-300 mb-1">텔레그램 체결 영수증 알림 봇 Username</label>
           <div class="flex items-center">
             <span class="px-2.5 py-2.5 bg-slate-800 border border-r-0 border-slate-700 rounded-l-lg text-slate-400 font-mono text-xs">@</span>
             <input type="text" id="settingTelegramBot" placeholder="wooyeon_asset_bot" value="wooyeon_asset_bot" class="flex-1 bg-slate-800 border border-slate-700 rounded-r-lg p-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-sky-500">
           </div>
-          <p class="text-[10px] text-slate-400 mt-1">Gemini AI Pro(Argon)가 생성하는 1클릭 체결 링크 대상 봇 (기본: wooyeon_asset_bot)</p>
+          <p class="text-[10px] text-slate-400 mt-1">한투 API 주문 체결 완료 후 1줄 영수증 푸시를 전송할 본인의 텔레그램 봇 ID</p>
         </div>
 
         <div class="pt-2 border-t border-slate-800 space-y-2">
