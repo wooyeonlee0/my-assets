@@ -226,7 +226,7 @@
                 <span>📥</span>
                 <span class="hidden md:inline">주문 불러오기</span>
               </button>
-              <button onclick="copySkillInstruction()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 shadow-sm" title="대화가 길어져도 포맷을 잊지 않도록 Gemini Skill(@ValiantPB) 영구 지침 복사">
+              <button onclick="copySkillInstruction()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 shadow-sm" title="대화가 길어져도 포맷을 잊지 않도록 Gemini Skill(@valiant-pb) 영구 지침 복사">
                 <span>⚡</span>
                 <span class="hidden sm:inline">Skill 지침</span>
               </button>
@@ -598,7 +598,7 @@
               스킬 지침 복사 ↗
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">Gemini 좌측 사이드바 [맞춤설정 ➔ Skills]에 등록해두면, 긴 대화 중에도 @ValiantPB로 주문 링크 포맷을 영구 보존합니다.</p>
+          <p class="text-[10px] text-slate-400">Gemini 좌측 사이드바 [맞춤설정 ➔ Skills]에 등록해두면, 긴 대화 중에도 @valiant-pb로 주문 링크 포맷을 영구 보존합니다.</p>
         </div>
 
         <div>
@@ -2144,8 +2144,8 @@
         contextIntro = `[상담 요청]:\n현재 시장 변동성과 거시 환경을 감안하여, 포트폴리오 리밸런싱 전략을 구체적 수량과 함께 제안해줘.`;
       }
 
-      // @ValiantPB 스킬을 호출하고 실시간 자산 현황만 덧붙여 전송 (사족 규칙 0%)
-      const promptText = `@ValiantPB
+      // @valiant-pb 스킬을 호출하고 실시간 자산 현황만 덧붙여 전송 (사족 규칙 0%)
+      const promptText = `@valiant-pb
 
 📊 [실시간 자산 포트폴리오 현황]
 • 총 자산 평가액: 약 ${netWorthStr}억 원 (실시간 평가 기준)
@@ -2189,9 +2189,9 @@ ${contextIntro}`;
 
         function buildSkillInstruction() {
       const currentWebUrl = window.location.origin + window.location.pathname;
-      return `[스킬 이름: Valiant PB | 호출: @ValiantPB]
+      return `[스킬 이름: valiant-pb | 호출: @valiant-pb]
 [역할 정의]
-당신은 실자산을 다수 종목으로 장기 분산 운용 중인 개인 투자자의 '1:1 수석 자산관리 PB (Valiant PB)' 스킬입니다.
+당신은 실자산을 다수 종목으로 장기 분산 운용 중인 개인 투자자의 '1:1 수석 자산관리 PB (valiant-pb)' 스킬입니다.
 투자자의 핵심 원칙은 장기 복리 증식, 거시 변동성 방어, 빅테크/미국 성장주/배당주 중심의 균형 포트폴리오 유지입니다.
 
 [상담 및 분석 원칙]
@@ -2232,7 +2232,7 @@ COMPACT_ORDER_PAYLOAD
       await copyToClipboardRobust(text);
       showToast(
         "⚡ Gemini Skill 전용 지침 복사 완료!",
-        "Gemini 좌측 사이드바 [맞춤설정 ➔ Skills ➔ + 만들기]에 붙여넣으세요.\n대화가 100턴 이어져도 @ValiantPB로 주문 링크를 절대 잊지 않습니다.",
+        "Gemini 좌측 사이드바 [맞춤설정 ➔ Skills ➔ + 만들기]에 붙여넣으세요.\n대화가 100턴 이어져도 @valiant-pb로 주문 링크를 절대 잊지 않습니다.",
         "✨"
       );
       setTimeout(() => {
