@@ -431,13 +431,11 @@
         </button>
       </div>
 
-      <!-- Sub Action Buttons: Telegram Deep Link & Gemini Review -->
-      <div class="flex items-center space-x-2">
-        <button onclick="sendBasketToTelegram()" class="flex-1 py-2.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded-xl font-bold text-xs transition-all flex items-center justify-center space-x-1">
-          <span>✈️ 텔레그램 딥링크 체결</span>
-        </button>
-        <button onclick="exportBasketToGeminiPro()" class="flex-1 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-xl font-bold text-xs transition-all flex items-center justify-center space-x-1">
-          <span>🧠 Gemini Pro에 검토 요청</span>
+      <!-- Sub Action Button: Gemini Review -->
+      <div>
+        <button onclick="exportBasketToGeminiPro()" class="w-full py-2.5 bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/30 rounded-xl font-bold text-xs transition-all flex items-center justify-center space-x-1.5" title="담긴 바스켓의 리스크와 적절성을 Gemini에게 재검토 요청">
+          <span>🧠</span>
+          <span>Gemini Pro에게 이 바스켓 재검토 요청</span>
         </button>
       </div>
     </div>
