@@ -643,11 +643,7 @@
       <span class="text-base">📸</span>
       <span>AI캡처</span>
     </button>
-                  <button onclick="copySkillInstruction()" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 shadow-sm" title="대화가 길어져도 포맷을 잊지 않도록 Gemini Skill(@ValiantPB) 영구 지침 복사">
-                <span>⚡</span>
-                <span class="hidden sm:inline">Skill 지침</span>
-              </button>
-              <button onclick="exportToGeminiPro()" class="flex flex-col items-center text-[10px] text-purple-400 font-semibold active:scale-95 transition-transform">
+<button onclick="exportToGeminiPro()" class="flex flex-col items-center text-[10px] text-purple-400 font-semibold active:scale-95 transition-transform">
       <span class="text-base">🧠</span>
       <span>Gemini</span>
     </button>
@@ -2177,10 +2173,39 @@ ${contextIntro}
     }
     window.buildGeminiPrompt = buildGeminiPrompt;
 
-    function buildGemInstruction() {
+        async function copyToClipboardRobust(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch (e) {
+          console.warn("navigator.clipboard failed, falling back to textarea", e);
+        }
+      }
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        const success = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return success;
+      } catch (err) {
+        document.body.removeChild(textArea);
+        return false;
+      }
+    }
+    window.copyToClipboardRobust = copyToClipboardRobust;
+
+    function buildSkillInstruction() {
       const currentWebUrl = window.location.origin + window.location.pathname;
-      return `[역할 정의]
-당신은 실자산을 20여 개 종목으로 장기 분산 운용 중인 개인 투자자의 '1:1 수석 자산관리 PB (Valiant PB)'입니다.
+      return `[스킬 이름: Valiant PB | 호출: @ValiantPB]
+[역할 정의]
+당신은 실자산을 20여 개 종목으로 장기 분산 운용 중인 개인 투자자의 '1:1 수석 자산관리 PB (Valiant PB)' 스킬입니다.
 투자자의 핵심 원칙은 장기 복리 증식, 거시 변동성 방어, 빅테크/미국 성장주/배당주 중심의 균형 포트폴리오 유지입니다.
 
 [상담 및 분석 원칙]
@@ -2198,34 +2223,32 @@ ${contextIntro}
    - 예시 2 (단건 매수): 구글 5주 매수 제안 시:
      👉 [내 자산 웹앱에서 이 바스켓 바로 열기](${currentWebUrl}?order=GOOGL.5.B)
 2. Sell-First 순서 원칙: 예수금 확보를 위해 반드시 매도(S) 종목을 매수(B)보다 앞단에 배치하세요.
-3. 안전 한도: 1회 주문 수량은 종목당 최대 100주 이하, 1회 최대 10개 종목 이내여야 합니다.
+3. 안전 한도: 1회 주문 수량은 종목당 최대 100주 이하, 최대 10개 종목 이내여야 합니다.
 4. order 파라미터에는 공백, 한글, 특수문자 없이 대문자 영문, 숫자, 마침표, 밑줄만 사용하세요.`;
     }
-    window.buildGemInstruction = buildGemInstruction;
+    window.buildSkillInstruction = buildSkillInstruction;
+    window.buildGemInstruction = buildSkillInstruction;
 
-    async function copyGemInstruction() {
-      const text = buildGemInstruction();
-      try {
-        await navigator.clipboard.writeText(text);
-        showToast(
-          "💎 Gemini Gem 전용 영구 지침 복사 완료!",
-          "Gemini 웹/앱의 [Gems 만들기 ➔ 지침(Instructions)]에 붙여넣으세요.\n대화가 100턴 이어져도 주문 링크 포맷을 절대 잊지 않습니다.",
-          "✨"
-        );
-      } catch (e) {
-        showToast("💎 Gem 지침 열기", "공식 Gemini Gems 페이지로 이동합니다.", "🚀");
-      }
+    async function copySkillInstruction() {
+      const text = buildSkillInstruction();
+      await copyToClipboardRobust(text);
+      showToast(
+        "⚡ Gemini Skill 전용 지침 복사 완료!",
+        "Gemini 좌측 사이드바 [맞춤설정 ➔ Skills ➔ + 만들기]에 붙여넣으세요.\n대화가 100턴 이어져도 @ValiantPB로 주문 링크를 절대 잊지 않습니다.",
+        "✨"
+      );
       setTimeout(() => {
-        window.open('https://gemini.google.com/gems', '_blank');
+        window.open('https://gemini.google.com/app', '_blank');
       }, 700);
     }
-    window.copyGemInstruction = copyGemInstruction;
+    window.copySkillInstruction = copySkillInstruction;
+    window.copyGemInstruction = copySkillInstruction;
 
 
     async function exportToGeminiPro(mode = 'portfolio') {
       const promptText = buildGeminiPrompt(mode);
       try {
-        await navigator.clipboard.writeText(promptText);
+        await copyToClipboardRobust(promptText);
         showToast(
           "🧠 Gemini AI Pro 프롬프트 복사 완료!",
           "실시간 자산 현황과 원클릭 체결 지침이 복사되었습니다.\n공식 Gemini 앱/웹에서 붙여넣기(Ctrl+V)하여 질문하세요.",
