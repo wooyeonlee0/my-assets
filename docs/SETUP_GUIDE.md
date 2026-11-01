@@ -105,6 +105,7 @@
 | `KIS_ACNT_PRDT_CD` | 계좌 상품코드 2자리 | `01` |
 | `TELEGRAM_BOT_TOKEN` | 텔레그램 BotFather 발급 토큰 | `7123456789:ABCdef...` |
 | `TELEGRAM_CHAT_ID` | 내 텔레그램 유저 ID 번호 | `123456789` |
+| `TRADING_PIN_HASH` | 2차 보안 PIN의 SHA-256 해시값 (옵션/추천) | `8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92` |
 
 > [!TIP]
 > 모의투자로 먼저 테스트하고 싶으시다면, 한투 Developers에서 **모의투자용 AppKey/AppSecret**을 발급받아 위 Secrets에 등록하시면 실제 돈이 나가지 않고 가상 체결로 완벽하게 안전 검증을 마칠 수 있습니다!

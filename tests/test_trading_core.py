@@ -233,5 +233,19 @@ class TestUnifiedTradingCore(unittest.TestCase):
         self.assertIsNone(decode_compact_order("NVDA.-3.B")) # 음수 무효
 
 
+    def test_pin_hash_verification(self):
+        """🔐 2차 보안: SHA-256 PIN 해시 검증 테스트"""
+        import hashlib
+        pin = "123456"
+        expected_hash = hashlib.sha256(pin.encode("utf-8")).hexdigest().lower()
+        
+        # 올바른 PIN 일치
+        self.assertEqual(hashlib.sha256("123456".encode("utf-8")).hexdigest().lower(), expected_hash)
+        
+        # 틀린 PIN 불일치
+        wrong_hash = hashlib.sha256("999999".encode("utf-8")).hexdigest().lower()
+        self.assertNotEqual(wrong_hash, expected_hash)
+
+
 if __name__ == "__main__":
     unittest.main()

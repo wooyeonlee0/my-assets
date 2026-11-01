@@ -1984,6 +1984,20 @@
     }
     window.closeBasketModal = closeBasketModal;
 
+        async function computePinHash(pin) {
+      if (!pin) return "";
+      try {
+        const msgUint8 = new TextEncoder().encode(pin.trim());
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
+      } catch (e) {
+        console.warn("crypto.subtle not supported or failed", e);
+        return "";
+      }
+    }
+    window.computePinHash = computePinHash;
+
     async function sendBatchOrder() {
       if (orderBasket.length === 0) {
         alert("바스켓이 비어있습니다. 주문할 종목을 먼저 담아주세요.");
@@ -2013,9 +2027,11 @@
       const buyOrders = orderBasket.filter(o => o.side === 'BUY');
       const sortedOrders = [...sellOrders, ...buyOrders];
 
+      const pinHash = await computePinHash(promptPin);
       const batchPayload = {
         batch_id: "b_" + Date.now().toString(36),
         batch_type: sellOrders.length && buyOrders.length ? "REBALANCE" : (sellOrders.length ? "SELL" : "BUY"),
+        pin_hash: pinHash,
         orders: sortedOrders.map(o => ({
           ticker: o.ticker,
           qty: o.qty,
@@ -2042,6 +2058,7 @@
             ref: 'master',
             inputs: {
               batch_json: JSON.stringify(batchPayload),
+              pin_hash: pinHash,
               ticker: sortedOrders[0].ticker,
               qty: String(sortedOrders[0].qty),
               order_type: sortedOrders[0].side,
@@ -2258,6 +2275,15 @@ COMPACT_ORDER_PAYLOAD
         window.open('https://gemini.google.com/app', '_blank');
       }, 700);
     }
+        async function copyPinHashForSecrets() {
+      const pin = prompt("🔐 본인이 사용할 6자리 보안 PIN을 입력하세요:\n(입력한 PIN의 SHA-256 해시를 생성하여 복사합니다)");
+      if (!pin || !pin.trim()) return;
+      const hash = await computePinHash(pin.trim());
+      await copyToClipboardRobust(hash);
+      alert(`🎉 [PIN 해시값 복사 완료]\n\n해시값:\n${hash}\n\n👉 GitHub 저장소 [Settings ➔ Secrets ➔ Actions]로 이동하여 [TRADING_PIN_HASH] 이름으로 이 값을 등록하세요!\n\n이제 외부인이 PAT 토큰을 탈취해도 이 6자리 PIN을 모르면 증권사 주문이 0% 원천 차단됩니다.`);
+    }
+    window.copyPinHashForSecrets = copyPinHashForSecrets;
+
     window.copySkillInstruction = copySkillInstruction;
     window.copyGemInstruction = copySkillInstruction;
 

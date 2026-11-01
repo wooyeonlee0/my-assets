@@ -189,6 +189,25 @@ def main():
     print(" 🚀 KIS Open API Serverless Trade Order Executor (Batch/Single)")
     print("=" * 60)
 
+    # 0. 🔐 2차 보안: 백엔드 PIN 해시 검증 (Dual Backend PIN Verification)
+    expected_pin_hash = os.getenv("TRADING_PIN_HASH", "").strip().lower()
+    if expected_pin_hash:
+        provided_pin_hash = os.getenv("ORDER_PIN_HASH", "").strip().lower()
+        batch_raw_check = os.getenv("ORDER_BATCH_JSON", "").strip()
+        if not provided_pin_hash and batch_raw_check and "pin_hash" in batch_raw_check:
+            try:
+                raw_dict = json.loads(batch_raw_check)
+                provided_pin_hash = str(raw_dict.get("pin_hash", "")).strip().lower()
+            except Exception:
+                pass
+
+        if not provided_pin_hash or provided_pin_hash != expected_pin_hash:
+            err_msg = "❌ [보안 거부] PIN 서명이 일치하지 않거나 누락되었습니다. 비인가 요청으로 판단하여 프로세스를 즉시 강제 종료합니다."
+            print(err_msg)
+            send_telegram_alert("🚨 <b>[비인가 트레이딩 시도 원천 차단]</b>\n\n• 사유: 2차 보안 PIN 서명 불일치\n• 조치: KIS 주문 API 호출 0건 및 프로세스 즉시 강제 종료")
+            sys.exit(1)
+        print("🔐 [보안 인증 성공] 백엔드 2차 보안 PIN 해시 서명 일치 확인 완료!")
+
     # 1. 계좌 환경변수 로드
     app_key = get_env_or_fail("KIS_APP_KEY")
     app_secret = get_env_or_fail("KIS_APP_SECRET")
