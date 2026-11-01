@@ -51,9 +51,9 @@ except ImportError:
         format_batch_summary_html
     )
 
-# 7.1억 포트폴리오 기준 데이터
+# 실자산 포트폴리오 기준 데이터
 DEFAULT_PORTFOLIO_CONTEXT = """
-[현재 보유 포트폴리오 요약 (총 자산: 약 7.1억 원)]
+[현재 보유 포트폴리오 요약 (실자산 기준)]
 - 미국 주식: NVDA(28%), GOOGL(18%), TSLA(14%), AAPL(10%), MSFT(8%), AMZN(5%), CCL(3%), 기타(4%)
 - 국내 주식: 삼성전자(12%), 기타(6%)
 - 투자 성향: 안정적 장기 보유 및 성장주 분할 리밸런싱. 불필요한 단타 지양.
@@ -356,7 +356,7 @@ class TelegramTradingBot:
             "keyboard": [
                 [
                     {
-                        "text": "📱 7.1억 자산 대시보드 & 바스켓 열기",
+                        "text": "📱 실자산 대시보드 & 바스켓 열기",
                         "web_app": {"url": WEBAPP_URL}
                     }
                 ],
