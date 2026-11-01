@@ -206,10 +206,15 @@
         <!-- Donut Chart -->
         <div class="lg:col-span-5 card-glass rounded-2xl p-5 flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-bold text-slate-200 flex items-center space-x-1.5">
-              <span>포트폴리오 자산 비중</span>
+            <h2 class="text-xs sm:text-sm font-bold text-slate-100 flex items-center space-x-1.5">
+              <span>자산 비중</span>
             </h2>
-            <span class="text-[11px] text-slate-400">더리치 연동 기준</span>
+            <!-- 3-Pill Multi-View Toggle -->
+            <div class="flex bg-slate-800/90 p-0.5 rounded-lg border border-slate-700/60 text-[10px]">
+              <button id="donutTab-stock" onclick="setDonutView('stock')" class="px-2 py-0.5 rounded-md font-bold transition-all bg-sky-500/20 text-sky-300 shadow-sm" title="개별 종목별 비중">종목</button>
+              <button id="donutTab-sector" onclick="setDonutView('sector')" class="px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all" title="산업 섹터/테마별 비중">섹터</button>
+              <button id="donutTab-country" onclick="setDonutView('country')" class="px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all" title="국가 및 통화별(USD vs KRW) 비중">국가/통화</button>
+            </div>
           </div>
           <div id="donutChart" class="flex-1 min-h-[310px] flex items-center justify-center"></div>
         </div>
@@ -1000,24 +1005,131 @@
     // -------------------------------------------------------------
     // 3. ApexCharts Visualizations
     // -------------------------------------------------------------
-    function renderDonutChart() {
-      const top8 = currentPortfolio.positions.slice(0, 8);
-      const others = currentPortfolio.positions.slice(8);
-      const otherSum = others.reduce((acc, cur) => acc + cur.eval_amount, 0);
+    let currentDonutView = 'stock'; // 'stock' | 'sector' | 'country'
 
-      const labels = top8.map(p => p.stock_name).concat(['기타 분산 종목들']);
-      const series = top8.map(p => Math.round(p.eval_amount / 10000)).concat([Math.round(otherSum / 10000)]);
+    function setDonutView(view) {
+      currentDonutView = view;
+      ['stock', 'sector', 'country'].forEach(v => {
+        const btn = document.getElementById(`donutTab-${v}`);
+        if (btn) {
+          if (v === view) {
+            btn.className = "px-2 py-0.5 rounded-md font-bold transition-all bg-sky-500/20 text-sky-300 shadow-sm";
+          } else {
+            btn.className = "px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all";
+          }
+        }
+      });
+      renderDonutChart();
+    }
+    window.setDonutView = setDonutView;
+
+    function classifySector(ticker, name) {
+      const t = (ticker || '').toUpperCase();
+      const n = (name || '').toUpperCase();
+
+      // 1. AI & 반도체
+      if (['NVDA', 'TSM', 'AVGO', 'AMD', 'ASML', 'QCOM', 'ARM', 'INTC', 'MU', '005930', '000660', '042700'].includes(t) ||
+          n.includes('엔비디아') || n.includes('하이닉스') || n.includes('삼성전자') || n.includes('반도체') || n.includes('SEMICONDUCTOR')) {
+        return 'AI & 반도체';
+      }
+
+      // 2. 빅테크 & 클라우드 / 소프트웨어
+      if (['GOOGL', 'GOOG', 'MSFT', 'AAPL', 'AMZN', 'META', 'PLTR', 'CRM', '035420', '035720'].includes(t) ||
+          n.includes('구글') || n.includes('알파벳') || n.includes('마이크로소프트') || n.includes('애플') || n.includes('아마존') || n.includes('메타') || n.includes('팔란티어') || n.includes('네이버')) {
+        return '빅테크 & 플랫폼';
+      }
+
+      // 3. 모빌리티 & 전동화
+      if (['TSLA', 'RIVN', 'LCID', '005380', '000270', '373220', '006400', '051910', '005490'].includes(t) ||
+          n.includes('테슬라') || n.includes('현대차') || n.includes('기아') || n.includes('에너지솔루션') || n.includes('배터리')) {
+        return '모빌리티 & 전기차';
+      }
+
+      // 4. 배당 & 인컴 & 지수 ETF
+      if (['SCHD', 'JEPI', 'JEPQ', 'SPY', 'QQQ', 'VOO', 'VTI', 'IVV', '088980', '맥쿼리'].some(k => t.includes(k) || n.includes(k)) ||
+          n.includes('배당') || n.includes('TIGER') || n.includes('KODEX') || n.includes('ACE') || n.includes('인프라')) {
+        return '배당 & 지수 ETF';
+      }
+
+      // 5. 바이오 & 헬스케어
+      if (['LLY', 'NVO', 'JNJ', 'PFE', 'UNH', '207940', '068270'].includes(t) ||
+          n.includes('바이오') || n.includes('헬스케어') || n.includes('셀트리온')) {
+        return '바이오 & 헬스케어';
+      }
+
+      return '기타 분산 자산';
+    }
+
+    function renderDonutChart() {
+      if (!currentPortfolio || !currentPortfolio.positions || currentPortfolio.positions.length === 0) return;
+
+      let labels = [];
+      let series = [];
+      let chartColors = ['#0284c7', '#38bdf8', '#818cf8', '#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#64748b'];
+
+      if (currentDonutView === 'stock') {
+        // [1] 종목별 뷰 (상위 8개 + 기타)
+        const top8 = currentPortfolio.positions.slice(0, 8);
+        const others = currentPortfolio.positions.slice(8);
+        const otherSum = others.reduce((acc, cur) => acc + (cur.eval_amount || 0), 0);
+
+        labels = top8.map(p => p.stock_name);
+        series = top8.map(p => Math.round((p.eval_amount || 0) / 10000));
+
+        if (otherSum > 0) {
+          labels.push('기타 분산 종목들');
+          series.push(Math.round(otherSum / 10000));
+        }
+      } else if (currentDonutView === 'sector') {
+        // [2] 섹터/테마별 뷰
+        const sectorMap = {};
+        currentPortfolio.positions.forEach(p => {
+          const sec = classifySector(p.stock_code, p.stock_name);
+          sectorMap[sec] = (sectorMap[sec] || 0) + (p.eval_amount || 0);
+        });
+
+        // 비중 높은 순 정렬
+        const sortedSectors = Object.entries(sectorMap).sort((a, b) => b[1] - a[1]);
+        labels = sortedSectors.map(s => s[0]);
+        series = sortedSectors.map(s => Math.round(s[1] / 10000));
+        chartColors = ['#818cf8', '#38bdf8', '#a855f7', '#10b981', '#f59e0b', '#ec4899', '#64748b'];
+      } else if (currentDonutView === 'country') {
+        // [3] 국가/통화별 뷰 (미국 USD vs 한국 KRW)
+        let usdSum = 0;
+        let krwSum = 0;
+
+        currentPortfolio.positions.forEach(p => {
+          const code = (p.stock_code || '').trim();
+          if (/^\d{6}$/.test(code)) {
+            krwSum += (p.eval_amount || 0);
+          } else {
+            usdSum += (p.eval_amount || 0);
+          }
+        });
+
+        labels = ['🇺🇸 미국 주식 (USD)', '🇰🇷 국내 주식 (KRW)'];
+        series = [Math.round(usdSum / 10000), Math.round(krwSum / 10000)];
+        chartColors = ['#0284c7', '#10b981'];
+      }
+
+      const totalNetWorthNum = Number(currentPortfolio.total_net_worth || 710860000);
+      const totalNetWorthEokStr = (totalNetWorthNum / 100000000).toFixed(2);
 
       const options = {
         chart: {
           type: 'donut',
           height: 310,
           background: 'transparent',
-          foreColor: '#94a3b8'
+          foreColor: '#94a3b8',
+          animations: {
+            enabled: true,
+            easing: 'easeinout',
+            speed: 400
+          }
         },
         series: series,
         labels: labels,
-        colors: ['#0284c7', '#38bdf8', '#818cf8', '#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#f59e0b', '#64748b'],
+        colors: chartColors,
         stroke: { show: false },
         dataLabels: { enabled: false },
         legend: {
@@ -1041,8 +1153,8 @@
                 show: true,
                 total: {
                   show: true,
-                  label: '총 순자산',
-                  formatter: () => '7.10 억원',
+                  label: currentDonutView === 'country' ? '통합 자산' : '총 순자산',
+                  formatter: () => `${totalNetWorthEokStr} 억원`,
                   color: '#f8fafc'
                 }
               }
