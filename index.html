@@ -139,6 +139,9 @@
       </div>
 
       <div class="flex items-center space-x-2">
+        <button id="btnPrivacyToggle" onclick="togglePrivacyMode()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700 text-sm" title="사생활 보호: 금액 숨기기/보기">
+          <span id="privacyIcon">🙈</span>
+        </button>
         <button onclick="lockVaultNow()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700" title="금고 즉시 잠금">
           🔒
         </button>
@@ -944,9 +947,41 @@
       }
     });
 
+    // -------------------------------------------------------------
+    // Privacy Mode (사생활 보호: 기본으로 금액 마스킹)
+    // -------------------------------------------------------------
+    let isPrivacyMode = true; // 기본값: 앱 켰을 때 기본으로 금액 숨김!
+
+    function togglePrivacyMode() {
+      isPrivacyMode = !isPrivacyMode;
+      updatePrivacyUI();
+      showToast(
+        isPrivacyMode ? "🙈 사생활 보호 모드 ON" : "👁️ 금액 표시 모드 ON",
+        isPrivacyMode ? "외부 시선으로부터 모든 자산 금액을 마스킹했습니다." : "실제 자산 평가액과 금액을 표시합니다.",
+        isPrivacyMode ? "🙈" : "👁️"
+      );
+    }
+    window.togglePrivacyMode = togglePrivacyMode;
+
+    function formatPrivacyAmount(amount) {
+      if (isPrivacyMode) return "₩ ••••••••";
+      return `₩${Number(amount || 0).toLocaleString()}`;
+    }
+    window.formatPrivacyAmount = formatPrivacyAmount;
+
+    function updatePrivacyUI() {
+      const icon = document.getElementById('privacyIcon');
+      if (icon) icon.innerText = isPrivacyMode ? "🙈" : "👁️";
+      renderKPIs();
+      renderHoldingsTable();
+      renderDonutChart();
+      renderHistoryTable();
+    }
+    window.updatePrivacyUI = updatePrivacyUI;
+
     function renderKPIs() {
-      document.getElementById('kpiNetWorth').innerText = `₩${Number(currentPortfolio.total_net_worth).toLocaleString()}`;
-      document.getElementById('kpiCash').innerText = `₩${Number(currentPortfolio.total_cash).toLocaleString()}`;
+      document.getElementById('kpiNetWorth').innerText = formatPrivacyAmount(currentPortfolio.total_net_worth);
+      document.getElementById('kpiCash').innerText = formatPrivacyAmount(currentPortfolio.total_cash);
       document.getElementById('kpiCashRatio').innerText = `비중 ${(currentPortfolio.cash_ratio * 100).toFixed(2)}% (원화/달러)`;
       document.getElementById('kpiHoldingsCount').innerText = `${currentPortfolio.positions.length}개 종목`;
     }
@@ -967,7 +1002,7 @@
             <div class="text-[10px] font-mono text-slate-400 font-semibold tracking-wider">${p.stock_code}</div>
           </td>
           <td class="py-2.5 px-2.5 text-right">
-            <div class="font-semibold text-slate-100 text-xs sm:text-sm">₩${Number(p.eval_amount).toLocaleString()}</div>
+            <div class="font-semibold text-slate-100 text-xs sm:text-sm">${formatPrivacyAmount(p.eval_amount)}</div>
             <div class="text-[10px] font-bold text-sky-400">${p.weight_pct.toFixed(1)}%</div>
           </td>
           <td class="py-2.5 px-2 text-center">
@@ -993,8 +1028,8 @@
         tr.className = "hover:bg-slate-800/40 transition-colors";
         tr.innerHTML = `
           <td class="py-2.5 px-3 font-mono font-medium text-slate-300">${h.timestamp}</td>
-          <td class="py-2.5 px-3 text-right font-bold text-slate-100">₩${Number(h.total_net_worth).toLocaleString()}</td>
-          <td class="py-2.5 px-3 text-right text-emerald-400">₩${Number(h.total_cash).toLocaleString()}</td>
+          <td class="py-2.5 px-3 text-right font-bold text-slate-100">${formatPrivacyAmount(h.total_net_worth)}</td>
+          <td class="py-2.5 px-3 text-right text-emerald-400">${formatPrivacyAmount(h.total_cash)}</td>
           <td class="py-2.5 px-3 text-right font-semibold text-slate-300">${(h.cash_ratio * 100).toFixed(1)}%</td>
           <td class="py-2.5 px-3 text-slate-400 text-[11px]">${h.note}</td>
         `;
@@ -1142,7 +1177,7 @@
         tooltip: {
           theme: 'dark',
           y: {
-            formatter: (val) => `${val.toLocaleString()} 만원`
+            formatter: (val) => isPrivacyMode ? '•••• 만원' : `${val.toLocaleString()} 만원`
           }
         },
         plotOptions: {
@@ -1154,7 +1189,7 @@
                 total: {
                   show: true,
                   label: currentDonutView === 'country' ? '통합 자산' : '총 순자산',
-                  formatter: () => `${totalNetWorthEokStr} 억원`,
+                  formatter: () => isPrivacyMode ? '•••• 억원' : `${totalNetWorthEokStr} 억원`,
                   color: '#f8fafc'
                 }
               }
