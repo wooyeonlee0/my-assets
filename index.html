@@ -415,6 +415,20 @@
         </div>
       </div>
 
+      <!-- 📊 Rebalancing Before & After Simulation Box -->
+      <div id="basketSimulationBox" class="p-3 bg-slate-850/80 border border-slate-700/70 rounded-xl text-xs space-y-2 hidden">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-300">
+          <span class="flex items-center space-x-1.5">
+            <span>📊</span>
+            <span>체결 후 예상 비중 변화 (Simulation)</span>
+          </span>
+          <span class="text-[10px] text-sky-400 font-normal">* 현재 평가액 기준 추산</span>
+        </div>
+        <div id="basketSimulationList" class="space-y-1.5 text-[11px]">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
       <!-- Pipeline Info -->
       <div class="p-3 bg-indigo-950/30 border border-indigo-500/20 rounded-xl text-[11px] text-indigo-300 space-y-1">
         <div class="flex justify-between font-bold">
@@ -1022,6 +1036,7 @@
         `;
         tbody.appendChild(tr);
       });
+      renderBasketSimulation();
     }
 
     function renderHistoryTable() {
@@ -2063,6 +2078,136 @@
     }
     window.addToBasket = addToBasket;
 
+    
+    function renderBasketSimulation() {
+      const container = document.getElementById('basketSimulationBox');
+      const listEl = document.getElementById('basketSimulationList');
+      if (!container || !listEl) return;
+
+      if (!orderBasket || orderBasket.length === 0 || !currentPortfolio || !currentPortfolio.positions || currentPortfolio.positions.length === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      const totalNetWorth = Number(currentPortfolio.total_net_worth) ||
+        (currentPortfolio.positions.reduce((sum, p) => sum + Number(p.eval_amount || 0), 0) + Number(currentPortfolio.total_cash || 0));
+
+      if (totalNetWorth <= 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+      listEl.innerHTML = '';
+
+      let projectedCash = Number(currentPortfolio.total_cash || 0);
+
+      const positionMap = {};
+      currentPortfolio.positions.forEach(p => {
+        const t = (p.stock_code || '').toUpperCase();
+        const evalAmt = Number(p.eval_amount || 0);
+        const qty = Number(p.quantity || 0);
+        positionMap[t] = {
+          name: p.stock_name || t,
+          ticker: t,
+          currentEval: evalAmt,
+          currentWeight: p.weight_pct ? Number(p.weight_pct) : ((evalAmt / totalNetWorth) * 100),
+          currentPrice: qty > 0 ? (evalAmt / qty) : 0
+        };
+      });
+
+      const simulatedMap = {};
+      orderBasket.forEach(item => {
+        const ticker = (item.ticker || '').toUpperCase();
+        const pos = positionMap[ticker];
+
+        if (!simulatedMap[ticker]) {
+          simulatedMap[ticker] = {
+            name: (pos && pos.name) || item.name || ticker,
+            ticker: ticker,
+            beforeEval: pos ? pos.currentEval : 0,
+            beforeWeight: pos ? pos.currentWeight : 0,
+            price: pos ? pos.currentPrice : 0,
+            deltaEval: 0,
+            totalQty: 0,
+            isNew: !pos || pos.currentPrice === 0
+          };
+        }
+
+        const tradePrice = simulatedMap[ticker].price;
+        const tradeAmt = item.qty * tradePrice;
+        if (item.side === 'SELL') {
+          simulatedMap[ticker].deltaEval -= tradeAmt;
+          simulatedMap[ticker].totalQty -= item.qty;
+          projectedCash += tradeAmt;
+        } else {
+          simulatedMap[ticker].deltaEval += tradeAmt;
+          simulatedMap[ticker].totalQty += item.qty;
+          projectedCash -= tradeAmt;
+        }
+      });
+
+      Object.values(simulatedMap).forEach(sim => {
+        const row = document.createElement('div');
+        row.className = "flex items-center justify-between pt-1.5 border-t border-slate-800/60 first:border-0 first:pt-0";
+
+        if (sim.isNew) {
+          row.innerHTML = `
+            <div class="flex items-center space-x-1.5 truncate max-w-[130px] sm:max-w-[200px]">
+              <span class="font-bold text-slate-200 truncate text-[11px]">${sim.name}</span>
+              <span class="text-[9px] font-mono text-slate-400 font-semibold">${sim.ticker}</span>
+            </div>
+            <div class="flex items-center space-x-2 text-right">
+              <span class="font-mono text-slate-400 text-[10px]">신규 편입</span>
+              <span class="px-1.5 py-0.2 rounded border font-mono font-bold text-[9px] text-sky-400 bg-sky-500/10 border-sky-500/20">+${sim.totalQty}주</span>
+            </div>
+          `;
+        } else {
+          const afterEval = Math.max(0, sim.beforeEval + sim.deltaEval);
+          const afterWeight = (afterEval / totalNetWorth) * 100;
+          const deltaWeight = afterWeight - sim.beforeWeight;
+          const sign = deltaWeight > 0 ? '+' : '';
+          const isUp = deltaWeight > 0.05;
+          const isDown = deltaWeight < -0.05;
+          const badgeColor = isUp ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : (isDown ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' : 'text-slate-400 bg-slate-800 border-slate-700');
+
+          row.innerHTML = `
+            <div class="flex items-center space-x-1.5 truncate max-w-[130px] sm:max-w-[200px]">
+              <span class="font-bold text-slate-200 truncate text-[11px]">${sim.name}</span>
+              <span class="text-[9px] font-mono text-slate-400 font-semibold">${sim.ticker}</span>
+            </div>
+            <div class="flex items-center space-x-2 text-right">
+              <span class="font-mono text-slate-400 text-[10px]">${sim.beforeWeight.toFixed(1)}% ➔ <b class="text-slate-100 text-xs">${afterWeight.toFixed(1)}%</b></span>
+              <span class="px-1.5 py-0.2 rounded border font-mono font-bold text-[9px] ${badgeColor}">${sign}${deltaWeight.toFixed(1)}%p</span>
+            </div>
+          `;
+        }
+        listEl.appendChild(row);
+      });
+
+      // 예수금 예상 변화
+      const beforeCash = Number(currentPortfolio.total_cash || 0);
+      const beforeCashWeight = (beforeCash / totalNetWorth) * 100;
+      const afterCashWeight = Math.max(0, (projectedCash / totalNetWorth) * 100);
+      const deltaCash = afterCashWeight - beforeCashWeight;
+      const cashSign = deltaCash > 0 ? '+' : '';
+      const cashBadgeColor = deltaCash >= 0 ? 'text-sky-400 bg-sky-500/10 border-sky-500/20' : 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+
+      const cashRow = document.createElement('div');
+      cashRow.className = "flex items-center justify-between pt-1.5 border-t border-slate-700/80 mt-1";
+      cashRow.innerHTML = `
+        <div class="flex items-center space-x-1.5">
+          <span class="font-bold text-slate-300 text-[11px]">💵 현금성 예수금</span>
+        </div>
+        <div class="flex items-center space-x-2 text-right">
+          <span class="font-mono text-slate-400 text-[10px]">${beforeCashWeight.toFixed(1)}% ➔ <b class="text-slate-100 text-xs">${afterCashWeight.toFixed(1)}%</b></span>
+          <span class="px-1.5 py-0.2 rounded border font-mono font-bold text-[9px] ${cashBadgeColor}">${cashSign}${deltaCash.toFixed(1)}%p</span>
+        </div>
+      `;
+      listEl.appendChild(cashRow);
+    }
+    window.renderBasketSimulation = renderBasketSimulation;
+
     function renderBasketUI() {
       const count = orderBasket.length;
       const badge = document.getElementById('basketCountBadge');
@@ -2093,6 +2238,7 @@
 
       if (count === 0) {
         if (emptyMsg) emptyMsg.classList.remove('hidden');
+        renderBasketSimulation();
         return;
       }
       if (emptyMsg) emptyMsg.classList.add('hidden');
