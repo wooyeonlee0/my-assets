@@ -76,6 +76,14 @@
         <div id="pinDot5" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
       </div>
 
+      <!-- 👆 Biometric (Fingerprint / Face ID) Unlock Button -->
+      <div id="bioUnlockSection" class="hidden pt-1">
+        <button type="button" onclick="unlockWithBiometrics()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-600/25 to-indigo-600/25 hover:from-sky-600/35 hover:to-indigo-600/35 border border-sky-500/35 text-sky-300 font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-md active:scale-95">
+          <span class="text-base">👆</span>
+          <span>지문 / Face ID로 1초 잠금 해제</span>
+        </button>
+      </div>
+
       <!-- Hidden Numeric Input for Auto Mobile/Desktop Keyboard -->
       <div class="relative h-6">
         <input 
@@ -620,6 +628,23 @@
           <p class="text-[10px] text-slate-400 mt-1">한투 API 주문 체결 완료 후 1줄 영수증 푸시를 전송할 본인의 텔레그램 봇 ID</p>
         </div>
 
+        <!-- 👆 Biometric Security Management Card -->
+        <div class="pt-2 border-t border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-1.5">
+              <span class="text-sm">👆</span>
+              <label class="block font-semibold text-slate-200">생체인증 (지문 / Face ID) 보안</label>
+            </div>
+            <span id="biometricBadge" class="text-[10px] font-mono px-2 py-0.5 rounded border text-slate-400 bg-slate-800 border-slate-700">확인 중...</span>
+          </div>
+          <div id="biometricControls" class="flex space-x-2">
+            <!-- Dynamic Buttons rendered by updateBiometricSettingsUI -->
+          </div>
+          <p class="text-[10px] text-slate-400">
+            스마트폰의 Touch ID / Face ID / 지문 센서를 연동하여 6자리 PIN 입력 없이 1초 터치만으로 금고 해제 및 주문 전송을 승인합니다.
+          </p>
+        </div>
+
         <div class="pt-2 border-t border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
             <label class="block font-semibold text-slate-200">🔐 금고 PIN 번호 변경 (6자리)</label>
@@ -804,6 +829,280 @@
       if (statusMsg) statusMsg.innerText = '';
     }
 
+    
+    // =============================================================
+    // 👆 WebAuthn Biometric Authentication Module (지문 / Face ID)
+    // =============================================================
+    const BIO_STORAGE_KEY = 'valiant_bio_cred';
+    const BIO_PAYLOAD_KEY = 'valiant_bio_vault';
+
+    function bufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return window.btoa(binary);
+    }
+
+    function base64ToBuffer(base64) {
+      const binary = window.atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    async function deriveBioKey(seedStr) {
+      const enc = new TextEncoder();
+      const rawKey = enc.encode((seedStr + "VALIANT_SECURITY_SALT").padEnd(32, '0').slice(0, 32));
+      return await crypto.subtle.importKey(
+        'raw',
+        rawKey,
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function encryptBioPayload(pin, credId) {
+      const key = await deriveBioKey(credId + window.location.origin);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const enc = new TextEncoder();
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        enc.encode(pin)
+      );
+      return {
+        iv: bufferToBase64(iv.buffer),
+        data: bufferToBase64(ciphertext)
+      };
+    }
+
+    async function decryptBioPayload(payload, credId) {
+      const key = await deriveBioKey(credId + window.location.origin);
+      const iv = new Uint8Array(base64ToBuffer(payload.iv));
+      const ciphertext = base64ToBuffer(payload.data);
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        ciphertext
+      );
+      const dec = new TextDecoder();
+      return dec.decode(decrypted);
+    }
+
+    async function isBiometricSupported() {
+      if (!window.PublicKeyCredential || !window.isSecureContext) return false;
+      try {
+        if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+          return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function isBiometricRegistered() {
+      const cred = localStorage.getItem(BIO_STORAGE_KEY);
+      const payload = localStorage.getItem(BIO_PAYLOAD_KEY);
+      return Boolean(cred && payload);
+    }
+
+    async function registerBiometric(pinToBind) {
+      if (!pinToBind || pinToBind.length !== 6) {
+        throw new Error("유효한 6자리 PIN이 필요합니다.");
+      }
+      const supported = await isBiometricSupported();
+      if (!supported) {
+        throw new Error("이 브라우저 또는 기기는 지문/생체인식(WebAuthn)을 지원하지 않습니다.");
+      }
+
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const userId = crypto.getRandomValues(new Uint8Array(16));
+
+      const createOptions = {
+        publicKey: {
+          rp: {
+            name: "VALIANT ASSET VAULT",
+            id: window.location.hostname || "localhost"
+          },
+          user: {
+            id: userId,
+            name: "valiant_owner",
+            displayName: "Valiant Portfolio Owner"
+          },
+          challenge: challenge,
+          pubKeyCredParams: [
+            { alg: -7, type: "public-key" },  // ES256
+            { alg: -257, type: "public-key" } // RS256
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required",
+            residentKey: "preferred"
+          },
+          timeout: 60000,
+          attestation: "none"
+        }
+      };
+
+      const credential = await navigator.credentials.create(createOptions);
+      if (!credential) {
+        throw new Error("생체인증 등록이 취소되었습니다.");
+      }
+
+      const credIdBase64 = bufferToBase64(credential.rawId);
+      const encryptedPayload = await encryptBioPayload(pinToBind, credIdBase64);
+
+      localStorage.setItem(BIO_STORAGE_KEY, JSON.stringify({
+        credId: credIdBase64,
+        createdAt: new Date().toISOString()
+      }));
+      localStorage.setItem(BIO_PAYLOAD_KEY, JSON.stringify(encryptedPayload));
+
+      return true;
+    }
+
+    async function authenticateWithBiometrics(reasonMsg = "보안 인증을 위해 지문/Face ID를 인증하세요") {
+      if (!isBiometricRegistered()) {
+        throw new Error("등록된 생체인증이 없습니다.");
+      }
+
+      const credData = JSON.parse(localStorage.getItem(BIO_STORAGE_KEY));
+      const payload = JSON.parse(localStorage.getItem(BIO_PAYLOAD_KEY));
+      const rawCredId = base64ToBuffer(credData.credId);
+
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+
+      const getOptions = {
+        publicKey: {
+          challenge: challenge,
+          allowCredentials: [{
+            id: rawCredId,
+            type: 'public-key',
+            transports: ['internal']
+          }],
+          userVerification: 'required',
+          timeout: 60000
+        }
+      };
+
+      const assertion = await navigator.credentials.get(getOptions);
+      if (!assertion) {
+        throw new Error("생체 인증이 취소되었습니다.");
+      }
+
+      const pin = await decryptBioPayload(payload, credData.credId);
+      return pin;
+    }
+
+    function removeBiometric() {
+      localStorage.removeItem(BIO_STORAGE_KEY);
+      localStorage.removeItem(BIO_PAYLOAD_KEY);
+      updateBiometricSettingsUI();
+      updateLockOverlayBiometricUI();
+      showToast("🗑️ 생체인증 해제", "기기에 등록된 지문인증 자격증명이 삭제되었습니다.", "🗑️");
+    }
+    window.removeBiometric = removeBiometric;
+
+    async function unlockWithBiometrics() {
+      const statusMsg = document.getElementById('lockStatusMsg');
+      try {
+        if (statusMsg) {
+          statusMsg.innerText = "👆 지문 센서를 터치하세요...";
+          statusMsg.className = "text-xs font-semibold text-sky-400 min-h-[18px]";
+        }
+        const pin = await authenticateWithBiometrics("금고 잠금 해제를 위해 지문 센서를 터치하세요");
+        if (pin && pin.length === 6) {
+          currentPinBuffer = pin;
+          updatePinDots();
+          await unlockVault(pin);
+          showToast("👆 지문인증 잠금 해제 성공", "생체인증으로 금고를 복호화했습니다.", "💎");
+        }
+      } catch (err) {
+        console.warn("생체인증 실패 또는 취소:", err);
+        if (statusMsg) {
+          statusMsg.innerText = "ℹ️ 생체인증이 취소되었습니다. 6자리 PIN을 직접 입력하세요.";
+          statusMsg.className = "text-xs font-semibold text-amber-400 min-h-[18px]";
+        }
+      }
+    }
+    window.unlockWithBiometrics = unlockWithBiometrics;
+
+    async function setupBiometricFromSettings() {
+      const pinToUse = currentUnlockedPin || prompt("🔐 생체인증에 등록할 현재 6자리 보안 PIN을 입력하세요:");
+      if (!pinToUse || pinToUse.trim().length !== 6) {
+        alert("❌ 유효한 6자리 PIN을 입력해야 생체인증을 등록할 수 있습니다.");
+        return;
+      }
+
+      try {
+        const btn = document.getElementById('btnRegisterBio');
+        if (btn) btn.innerHTML = "<span>👆 지문 센서 터치 대기 중...</span>";
+        await registerBiometric(pinToUse.trim());
+        updateBiometricSettingsUI();
+        updateLockOverlayBiometricUI();
+        alert(`🎉 [생체인증 등록 완료]\n\n이 기기의 지문 / Face ID 센서가 성공적으로 등록되었습니다.\n이제 6자리 PIN 대신 1초 터치로 금고 해제 및 주문 승인이 가능합니다!`);
+      } catch (e) {
+        console.error("생체인증 등록 실패:", e);
+        alert("❌ 생체인증 등록 실패: " + (e.message || e));
+      } finally {
+        updateBiometricSettingsUI();
+      }
+    }
+    window.setupBiometricFromSettings = setupBiometricFromSettings;
+
+    async function updateBiometricSettingsUI() {
+      const badge = document.getElementById('biometricBadge');
+      const controls = document.getElementById('biometricControls');
+      if (!badge || !controls) return;
+
+      const supported = await isBiometricSupported();
+      if (!supported) {
+        badge.innerText = "기기 미지원";
+        badge.className = "text-[10px] font-mono px-2 py-0.5 rounded border text-slate-500 bg-slate-900 border-slate-800";
+        controls.innerHTML = `<span class="text-xs text-slate-500 py-1">이 브라우저/기기는 WebAuthn 생체인증을 지원하지 않습니다.</span>`;
+        return;
+      }
+
+      if (isBiometricRegistered()) {
+        badge.innerText = "✅ 등록됨 (활성)";
+        badge.className = "text-[10px] font-mono px-2 py-0.5 rounded border text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+        controls.innerHTML = `
+          <button type="button" onclick="unlockWithBiometrics()" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg font-bold text-xs flex items-center justify-center space-x-1">
+            <span>👆 테스트</span>
+          </button>
+          <button type="button" onclick="removeBiometric()" class="py-2 px-3 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-500/30 rounded-lg font-bold text-xs flex items-center justify-center space-x-1">
+            <span>🗑️ 등록 해제</span>
+          </button>
+        `;
+      } else {
+        badge.innerText = "미등록";
+        badge.className = "text-[10px] font-mono px-2 py-0.5 rounded border text-amber-400 bg-amber-500/10 border-amber-500/20";
+        controls.innerHTML = `
+          <button type="button" id="btnRegisterBio" onclick="setupBiometricFromSettings()" class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 transition-all">
+            <span>👆 이 기기에 지문 / Face ID 등록</span>
+          </button>
+        `;
+      }
+    }
+    window.updateBiometricSettingsUI = updateBiometricSettingsUI;
+
+    function updateLockOverlayBiometricUI() {
+      const sec = document.getElementById('bioUnlockSection');
+      if (!sec) return;
+      if (isBiometricRegistered()) {
+        sec.classList.remove('hidden');
+      } else {
+        sec.classList.add('hidden');
+      }
+    }
+    window.updateLockOverlayBiometricUI = updateLockOverlayBiometricUI;
+
     function handlePinInput(val) {
       const sanitized = val.replace(/[^0-9]/g, '').slice(0, 6);
       currentPinBuffer = sanitized;
@@ -951,6 +1250,7 @@
     window.addEventListener('DOMContentLoaded', async () => {
       handleUrlOrderPayload();
       loadSettings();
+      updateLockOverlayBiometricUI();
 
       // 저장된 PIN이 있다면 자동 잠금 해제 시도
       const savedPin = localStorage.getItem('valiant_saved_pin');
@@ -1166,7 +1466,7 @@
         chartColors = ['#0284c7', '#10b981'];
       }
 
-      const totalNetWorthNum = Number(currentPortfolio.total_net_worth || 710860000);
+      const totalNetWorthNum = Number(currentPortfolio.total_net_worth) || ((currentPortfolio.positions || []).reduce((sum, p) => sum + Number(p.eval_amount || 0), 0) + Number(currentPortfolio.total_cash || 0));
       const totalNetWorthEokStr = (totalNetWorthNum / 100000000).toFixed(2);
 
       const options = {
@@ -1353,6 +1653,7 @@
       const testStatus = document.getElementById('geminiTestStatus');
       if (testStatus) testStatus.classList.add('hidden');
       document.getElementById('settingsModal').classList.remove('hidden');
+      updateBiometricSettingsUI();
     }
 
     // -------------------------------------------------------------
@@ -2341,12 +2642,28 @@
         return;
       }
 
-      // 🔐 2차 보안: 6자리 PIN 확인
-      const promptPin = prompt(`🔐 [한투 배치 주문 2차 보안 인증]\n\n• 총 건수: ${orderBasket.length}건 (Sell-First 파이프라인 집행)\n\n주문을 증권사로 일괄 전송하려면 6자리 보안 PIN을 입력해주세요:`);
-      if (promptPin === null) return;
+      // 🔐 2차 보안: 생체인증(지문) 우선 시도 ➔ PIN 자동 폴백
+      let orderPin = null;
+      if (isBiometricRegistered()) {
+        try {
+          showToast("👆 지문 센서 터치", "주문 전송 승인을 위해 스마트폰 지문/생체 센서를 터치해주세요.", "👆");
+          orderPin = await authenticateWithBiometrics("주문 일괄 전송을 승인하려면 지문 센서를 터치하세요");
+          if (orderPin) {
+            showToast("✅ 지문 인증 완료", "생체인증이 통과되었습니다. 주문을 전송합니다.", "🚀");
+          }
+        } catch (bioErr) {
+          console.warn("생체인증 취소 또는 실패 -> PIN 입력으로 폴백:", bioErr);
+        }
+      }
 
-      const expectedPin = sessionStorage.getItem('valiant_unlocked_pin') || localStorage.getItem('valiant_cached_pin') || "123456";
-      if (promptPin.trim() !== expectedPin) {
+      if (!orderPin) {
+        const promptPin = prompt(`🔐 [한투 배치 주문 2차 보안 인증]\n\n• 총 건수: ${orderBasket.length}건 (Sell-First 파이프라인 집행)\n\n주문을 증권사로 일괄 전송하려면 6자리 보안 PIN을 입력해주세요:`);
+        if (promptPin === null) return;
+        orderPin = promptPin.trim();
+      }
+
+      const expectedPin = sessionStorage.getItem('valiant_unlocked_pin') || localStorage.getItem('valiant_cached_pin') || currentUnlockedPin || "123456";
+      if (orderPin !== expectedPin) {
         alert("❌ [인증 실패] 보안 PIN이 일치하지 않습니다. 주문이 전송되지 않았습니다.");
         return;
       }
@@ -2364,7 +2681,7 @@
       const buyOrders = orderBasket.filter(o => o.side === 'BUY');
       const sortedOrders = [...sellOrders, ...buyOrders];
 
-      const pinHash = await computePinHash(promptPin);
+      const pinHash = await computePinHash(orderPin);
       const batchPayload = {
         batch_id: "b_" + Date.now().toString(36),
         batch_type: sellOrders.length && buyOrders.length ? "REBALANCE" : (sellOrders.length ? "SELL" : "BUY"),
@@ -2483,7 +2800,7 @@
     window.sendBasketToTelegram = sendBasketToTelegram;
 
     function buildGeminiPrompt(mode = 'portfolio') {
-      const netWorthNum = Number(currentPortfolio.total_net_worth || 710860000);
+      const netWorthNum = Number(currentPortfolio.total_net_worth) || ((currentPortfolio.positions || []).reduce((sum, p) => sum + Number(p.eval_amount || 0), 0) + Number(currentPortfolio.total_cash || 0));
       const netWorthStr = (netWorthNum / 100000000).toFixed(2);
       const cashRatioStr = ((currentPortfolio.cash_ratio || 0.05) * 100).toFixed(2);
       const botUsername = localStorage.getItem('valiant_tg_bot') || "wooyeon_asset_bot";
