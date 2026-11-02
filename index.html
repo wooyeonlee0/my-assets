@@ -634,11 +634,11 @@
 
   <!-- Mobile Bottom Sticky Navigation (5-Tab Mobile Thumb Bar) -->
   <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/80 px-2 py-1.5 flex justify-around items-center shadow-2xl">
-    <button onclick="switchTab('allocation')" class="flex flex-col items-center text-[10px] text-sky-400 font-semibold py-1 px-2 active:scale-95 transition-transform">
+    <button id="navBtn-allocation" onclick="switchTab('allocation')" class="flex flex-col items-center text-[10px] text-sky-400 font-bold py-1 px-2 active:scale-95 transition-transform">
       <span class="text-base">🍩</span>
       <span>비중</span>
     </button>
-    <button onclick="switchTab('history')" class="flex flex-col items-center text-[10px] text-slate-400 font-semibold py-1 px-2 active:scale-95 transition-transform">
+    <button id="navBtn-history" onclick="switchTab('history')" class="flex flex-col items-center text-[10px] text-slate-400 font-medium py-1 px-2 active:scale-95 transition-transform">
       <span class="text-base">📈</span>
       <span>추이</span>
     </button>
@@ -1289,15 +1289,40 @@
         btn.classList.add('text-slate-400');
       });
 
-      document.getElementById(`tabContent-${tabId}`).classList.remove('hidden');
+      const targetContent = document.getElementById(`tabContent-${tabId}`);
+      if (targetContent) targetContent.classList.remove('hidden');
+
       const activeBtn = document.getElementById(`tabBtn-${tabId}`);
       if (activeBtn) {
         activeBtn.classList.add('bg-sky-500/20', 'text-sky-400', 'border', 'border-sky-500/30');
         activeBtn.classList.remove('text-slate-400');
       }
 
-      if (tabId === 'allocation' && donutChartInstance) donutChartInstance.render();
-      if (tabId === 'history' && historyChartInstance) historyChartInstance.render();
+      // Sync mobile bottom nav buttons
+      ['allocation', 'history'].forEach(id => {
+        const navBtn = document.getElementById(`navBtn-${id}`);
+        if (navBtn) {
+          if (id === tabId) {
+            navBtn.classList.remove('text-slate-400', 'font-medium');
+            navBtn.classList.add('text-sky-400', 'font-bold');
+          } else {
+            navBtn.classList.remove('text-sky-400', 'font-bold');
+            navBtn.classList.add('text-slate-400', 'font-medium');
+          }
+        }
+      });
+
+      if (tabId === 'allocation') {
+        renderDonutChart();
+      } else if (tabId === 'history') {
+        renderHistoryTable();
+        renderHistoryTrendChart();
+      }
+
+      // Trigger window resize event to force ApexCharts re-fit perfectly
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
     }
 
     const DEFAULT_REPO = "wooyeonlee0/my-assets";
