@@ -274,7 +274,7 @@
           </div>
           <div class="text-right">
             <span class="text-xs text-slate-400">기준 기간 변동:</span>
-            <span class="text-xs font-bold text-rose-400 ml-1">8.38억 ➔ 7.10억 (-15.2%)</span>
+            <span id="historyChangeBadge" class="text-xs font-bold text-rose-400 ml-1">계산 중...</span>
           </div>
         </div>
         <div id="historyTrendChart" class="min-h-[320px]"></div>
@@ -868,6 +868,9 @@
     function lockVaultNow() {
       localStorage.removeItem('valiant_saved_pin');
       currentUnlockedPin = null;
+      isPrivacyMode = true;
+      const icon = document.getElementById('privacyIcon');
+      if (icon) icon.innerText = "🙈";
       currentPortfolio = { total_net_worth: 0, total_cash: 0, cash_ratio: 0, positions: [] };
       historyRecords = [];
       clearPinInput();
@@ -976,6 +979,7 @@
       renderHoldingsTable();
       renderDonutChart();
       renderHistoryTable();
+      renderHistoryTrendChart();
     }
     window.updatePrivacyUI = updatePrivacyUI;
 
@@ -1207,6 +1211,23 @@
       const dates = historyRecords.map(h => h.timestamp);
       const amountsInEok = historyRecords.map(h => Number((h.total_net_worth / 100000000).toFixed(2)));
 
+      const changeBadge = document.getElementById('historyChangeBadge');
+      if (changeBadge && historyRecords.length >= 2) {
+        const first = historyRecords[0].total_net_worth;
+        const last = historyRecords[historyRecords.length - 1].total_net_worth;
+        const diff = last - first;
+        const diffPct = ((diff / first) * 100).toFixed(1);
+        const sign = diff >= 0 ? '+' : '';
+        const colorClass = diff >= 0 ? 'text-emerald-400' : 'text-rose-400';
+
+        if (isPrivacyMode) {
+          changeBadge.innerText = `••••억 ➔ ••••억 (${sign}${diffPct}%)`;
+        } else {
+          changeBadge.innerText = `${(first/100000000).toFixed(2)}억 ➔ ${(last/100000000).toFixed(2)}억 (${sign}${diffPct}%)`;
+        }
+        changeBadge.className = `text-xs font-bold ${colorClass} ml-1`;
+      }
+
       const options = {
         chart: {
           type: 'area',
@@ -1226,7 +1247,7 @@
         },
         yaxis: {
           labels: {
-            formatter: (v) => `${v.toFixed(1)}억`
+            formatter: (v) => isPrivacyMode ? '••••' : `${v.toFixed(1)}억`
           }
         },
         colors: ['#38bdf8'],
@@ -1241,7 +1262,7 @@
         },
         dataLabels: {
           enabled: true,
-          formatter: (v) => `${v}억`,
+          formatter: (v) => isPrivacyMode ? '••••' : `${v}억`,
           style: { fontSize: '11px', colors: ['#e2e8f0'] },
           offsetY: -6
         },
