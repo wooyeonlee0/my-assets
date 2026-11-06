@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Valiant Portfolio | 스마트 자산관리</title>
+  <title>Valiant Trading Remote | 1초 지문 체결 리모컨</title>
   
   <!-- PWA & Mobile Web Meta -->
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#090d16">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="./manifest.json">
@@ -15,10 +15,6 @@
   <!-- Pretendard Font & Tailwind CDN -->
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- ApexCharts CDN, Marked Markdown Parser, & Deep Chat Component -->
-  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <script>
     tailwind.config = {
@@ -28,7 +24,7 @@
           fontFamily: { sans: ['Pretendard', 'sans-serif'] },
           colors: {
             brand: { 50: '#f0f9ff', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1' },
-            slate: { 850: '#151e2e', 900: '#0f172a', 950: '#080d1a' }
+            slate: { 850: '#141c2e', 900: '#0c1222', 950: '#070b14' }
           }
         }
       }
@@ -38,597 +34,304 @@
   <style>
     body {
       font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-      background-color: #0b1120;
+      background-color: #070b14;
       color: #f1f5f9;
       -webkit-tap-highlight-color: transparent;
     }
     .card-glass {
-      background: rgba(30, 41, 59, 0.7);
-      backdrop-filter: blur(12px);
+      background: rgba(20, 28, 46, 0.75);
+      backdrop-filter: blur(14px);
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
     .scrollbar-none::-webkit-scrollbar { display: none; }
     .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
-<body class="min-h-screen pb-20 md:pb-8 flex flex-col">
+<body class="min-h-screen pb-16 flex flex-col">
 
-  <!-- Master PIN Vault Lock Screen Overlay -->
-  <div id="vaultLockOverlay" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 transition-all duration-300">
-    <div class="card-glass bg-slate-900/90 border border-slate-800 rounded-3xl max-w-sm w-full p-7 text-center space-y-5 shadow-2xl shadow-sky-500/10">
-      
-      <div class="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-2xl shadow-lg shadow-indigo-500/30">
-        💎
-      </div>
-      
-      <div>
-        <h2 class="text-lg font-bold text-slate-100 tracking-tight">VALIANT ASSET VAULT</h2>
-        <p class="text-xs text-slate-400 mt-1">자산 금고를 열려면 6자리 PIN을 입력하세요</p>
-      </div>
-
-      <!-- PIN Dots Indicator -->
-      <div class="flex justify-center items-center space-x-3 py-1">
-        <div id="pinDot0" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
-        <div id="pinDot1" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
-        <div id="pinDot2" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
-        <div id="pinDot3" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
-        <div id="pinDot4" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
-        <div id="pinDot5" class="w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150"></div>
-      </div>
-
-      <!-- 👆 Biometric (Fingerprint / Face ID) Unlock Button -->
-      <div id="bioUnlockSection" class="hidden pt-1">
-        <button type="button" onclick="unlockWithBiometrics()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-600/25 to-indigo-600/25 hover:from-sky-600/35 hover:to-indigo-600/35 border border-sky-500/35 text-sky-300 font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-md active:scale-95">
-          <span class="text-base">👆</span>
-          <span>지문 / Face ID로 1초 잠금 해제</span>
-        </button>
-      </div>
-
-      <!-- Hidden Numeric Input for Auto Mobile/Desktop Keyboard -->
-      <div class="relative h-6">
-        <input 
-          type="password" 
-          id="pinInput" 
-          inputmode="numeric" 
-          pattern="[0-9]*" 
-          maxlength="6" 
-          autocomplete="one-time-code"
-          class="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10" 
-          oninput="handlePinInput(this.value)" 
-          autofocus
-        />
-        <div class="text-[11px] text-slate-500">화면 터치 또는 번호 패드로 입력하세요</div>
-      </div>
-
-      <!-- Status / Error message -->
-      <p id="lockStatusMsg" class="text-xs font-semibold text-rose-400 min-h-[18px]"></p>
-
-      <!-- Keypad (모바일/터치용 키패드) -->
-      <div class="grid grid-cols-3 gap-2 pt-1">
-        <button onclick="pressPinKey('1')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">1</button>
-        <button onclick="pressPinKey('2')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">2</button>
-        <button onclick="pressPinKey('3')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">3</button>
-        <button onclick="pressPinKey('4')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">4</button>
-        <button onclick="pressPinKey('5')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">5</button>
-        <button onclick="pressPinKey('6')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">6</button>
-        <button onclick="pressPinKey('7')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">7</button>
-        <button onclick="pressPinKey('8')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">8</button>
-        <button onclick="pressPinKey('9')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">9</button>
-        <button onclick="clearPinInput()" class="py-3 rounded-xl bg-slate-800/40 hover:bg-slate-700 text-xs font-semibold text-slate-400">초기화</button>
-        <button onclick="pressPinKey('0')" class="py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-sky-600 text-lg font-bold text-slate-200 transition-colors">0</button>
-        <button onclick="deletePinKey()" class="py-3 rounded-xl bg-slate-800/40 hover:bg-slate-700 text-sm font-semibold text-slate-400">⌫</button>
-      </div>
-
-      <!-- Remember device option -->
-      <div class="flex items-center justify-center space-x-2 pt-1 text-[11px] text-slate-400">
-        <input type="checkbox" id="rememberSessionCheck" checked class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0">
-        <label for="rememberSessionCheck">이 기기에서 30일 동안 로그인 유지</label>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Top Navigation Bar -->
-  <header class="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
-    <div class="max-w-6xl mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-2 sm:space-x-2.5">
-        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20 text-white font-black text-base shrink-0">
+  <!-- ============================================================= -->
+  <!-- Top Navigation Bar                                            -->
+  <!-- ============================================================= -->
+  <header class="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80">
+    <div class="max-w-xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20 text-white font-black text-sm shrink-0">
           💎
         </div>
         <div>
           <div class="flex items-center space-x-1.5">
-            <h1 class="text-sm sm:text-base font-bold text-slate-100 tracking-tight">VALIANT</h1>
-            <span id="syncStatusBadge" class="hidden sm:inline-flex text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              금고 잠금해제됨
-            </span>
+            <h1 class="text-xs sm:text-sm font-black tracking-wider text-slate-100 uppercase">Valiant Remote</h1>
+            <span class="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 font-bold">1초 체결</span>
           </div>
-          <p class="text-[10px] text-slate-400 hidden sm:block">통합 포트폴리오 관제탑</p>
+          <p class="text-[10px] text-slate-400">한투 API 초경량 트레이딩 콘솔</p>
         </div>
       </div>
 
-      <div class="flex items-center space-x-1.5">
-        <button id="btnPrivacyToggle" onclick="togglePrivacyMode()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700 text-xs sm:text-sm" title="사생활 보호: 금액 숨기기/보기">
-          <span id="privacyIcon">🙈</span>
-        </button>
-        <button onclick="lockVaultNow()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700 text-xs sm:text-sm" title="금고 즉시 잠금">
-          🔒
-        </button>
-        <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700" title="API 및 보안 설정">
-          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+      <div class="flex items-center space-x-2">
+        <!-- Live Runner Status Badge -->
+        <div id="runnerStatusBadge" class="hidden sm:flex items-center space-x-1 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-semibold" title="한투 클라우드 러너 연동 상태">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>KIS 연동</span>
+        </div>
+        
+        <!-- Settings Modal Button -->
+        <button onclick="openSettingsModal()" class="w-8 h-8 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-slate-100 flex items-center justify-center transition-all text-xs" title="연동 설정">
+          ⚙️
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="max-w-6xl mx-auto px-4 py-6 flex-1 w-full">
+  <!-- ============================================================= -->
+  <!-- Main Trading Remote Console Container                         -->
+  <!-- ============================================================= -->
+  <main class="flex-1 max-w-xl w-full mx-auto px-4 py-5 space-y-4">
 
-    <!-- KPI Summary Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
-      <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-xs font-medium text-slate-400">총 순자산 (Net Worth)</span>
-        <div class="my-1">
-          <div id="kpiNetWorth" class="text-xl md:text-2xl font-black text-slate-100 tracking-tight">••••••••</div>
-        </div>
-        <span id="kpiChangeSub" class="text-[11px] text-sky-400 font-medium">더리치 실데이터 트래킹</span>
+    <!-- ⚡ Quick System Status Pill -->
+    <div class="flex items-center justify-between p-2.5 bg-slate-900/60 border border-slate-800/80 rounded-xl text-[11px]">
+      <div class="flex items-center space-x-2">
+        <span class="text-sm">👆</span>
+        <span class="text-slate-300 font-medium">인증 방식:</span>
+        <span id="headerBioStatus" class="font-bold text-sky-400 font-mono">생체인증(패스키) 우선</span>
       </div>
-
-      <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-xs font-medium text-slate-400">보유 현금 (예수금)</span>
-        <div class="my-1">
-          <div id="kpiCash" class="text-xl md:text-2xl font-black text-emerald-400 tracking-tight">••••••••</div>
-        </div>
-        <span id="kpiCashRatio" class="text-[11px] text-slate-400">비중 --%</span>
-      </div>
-
-      <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-xs font-medium text-slate-400">트래킹 종목 수</span>
-        <div class="my-1">
-          <div id="kpiHoldingsCount" class="text-xl md:text-2xl font-black text-indigo-400 tracking-tight">--개 종목</div>
-        </div>
-        <span class="text-[11px] text-slate-400">보안 금고 해제 필요</span>
-      </div>
-
-      <div class="card-glass rounded-2xl p-4 flex flex-col justify-between">
-        <span class="text-xs font-medium text-slate-400">월 예상 배당금 (추정)</span>
-        <div class="my-1">
-          <div id="kpiDividends" class="text-xl md:text-2xl font-black text-amber-400 tracking-tight">••••••••</div>
-        </div>
-        <span class="text-[11px] text-slate-400">연간 배당 추정치</span>
-      </div>
-    </div>
-
-    <!-- Tab Buttons (Desktop & Mobile Segmented Control) -->
-    <div class="flex space-x-1 p-1 bg-slate-900/90 border border-slate-800 rounded-xl mb-6 overflow-x-auto scrollbar-none">
-      <button onclick="switchTab('allocation')" id="tabBtn-allocation" class="tab-btn flex-1 min-w-[90px] py-2 px-3 rounded-lg text-xs md:text-sm font-semibold transition-all bg-sky-500/20 text-sky-400 border border-sky-500/30">
-        🍩 자산 비중
-      </button>
-      <button onclick="switchTab('history')" id="tabBtn-history" class="tab-btn flex-1 min-w-[90px] py-2 px-3 rounded-lg text-xs md:text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all">
-        📈 시계열 추이
-      </button>
-      <button onclick="switchTab('geminiVision')" id="tabBtn-geminiVision" class="tab-btn flex-1 min-w-[100px] py-2 px-3 rounded-lg text-xs md:text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center space-x-1">
-        <span>📸 AI 캡처 동기화</span>
+      <button onclick="openSettingsModal()" class="text-[10px] text-slate-400 hover:text-sky-400 underline transition-colors">
+        보안 관리
       </button>
     </div>
 
-    <!-- TAB 1: 더리치 자산 비중 (Donut Chart & Detailed Table) -->
-    <div id="tabContent-allocation" class="tab-content space-y-6">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Donut Chart -->
-        <div class="lg:col-span-5 card-glass rounded-2xl p-5 flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-xs sm:text-sm font-bold text-slate-100 flex items-center space-x-1.5">
-              <span>자산 비중</span>
-            </h2>
-            <!-- 3-Pill Multi-View Toggle -->
-            <div class="flex bg-slate-800/90 p-0.5 rounded-lg border border-slate-700/60 text-[10px]">
-              <button id="donutTab-stock" onclick="setDonutView('stock')" class="px-2 py-0.5 rounded-md font-bold transition-all bg-sky-500/20 text-sky-300 shadow-sm" title="개별 종목별 비중">종목</button>
-              <button id="donutTab-sector" onclick="setDonutView('sector')" class="px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all" title="산업 섹터/테마별 비중">섹터</button>
-              <button id="donutTab-country" onclick="setDonutView('country')" class="px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all" title="국가 및 통화별(USD vs KRW) 비중">국가/통화</button>
-            </div>
-          </div>
-          <div id="donutChart" class="flex-1 min-h-[310px] flex items-center justify-center"></div>
-        </div>
-
-        <!-- Position Table -->
-        <div class="lg:col-span-7 card-glass rounded-2xl p-5">
-          <!-- Clean Mobile-First Table Header -->
-          <div class="flex items-center justify-between mb-3.5 pb-2 border-b border-slate-800/80">
-            <div>
-              <div class="flex items-center space-x-2">
-                <h2 class="text-xs sm:text-sm font-bold text-slate-100">보유 종목 상세</h2>
-                <span id="holdingsCountBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">20개</span>
-              </div>
-              <p class="text-[10px] text-slate-400 hidden sm:block">터치 시 한투 API 주문 모달 호출</p>
-            </div>
-            <!-- Desktop Action Bar (Mobile uses bottom sticky nav to avoid duplication) -->
-            <div class="hidden md:flex items-center space-x-1.5">
-              <button onclick="importOrderFromClipboard()" class="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 shadow-sm active:scale-95" title="Gemini 제안 주문 클립보드에서 원클릭 불러오기">
-                <span>📥</span>
-                <span>불러오기</span>
-              </button>
-              <button id="btnHeaderBasket" onclick="openBasketModal()" class="px-2.5 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold transition-all flex items-center space-x-1 shadow-sm active:scale-95">
-                <span>🛒</span>
-                <span>바스켓</span>
-                <span id="basketCountBadge" class="ml-0.5 px-1.5 py-0.2 bg-indigo-500 text-white rounded-full text-[10px] font-bold">0</span>
-              </button>
-            </div>
-          </div>
-          <div class="overflow-x-auto max-h-[350px] overflow-y-auto pr-1">
-            <table class="w-full text-left text-xs">
-              <thead class="text-[11px] uppercase bg-slate-800/80 text-slate-400 sticky top-0 backdrop-blur-sm border-b border-slate-700/60">
-                <tr>
-                  <th class="py-2 px-2.5 rounded-l-lg">종목 / 티커</th>
-                  <th class="py-2 px-2.5 text-right">평가금액 / 비중</th>
-                  <th class="py-2 px-2 text-center w-16 sm:w-20 rounded-r-lg">주문</th>
-                </tr>
-              </thead>
-              <tbody id="holdingsTableBody" class="divide-y divide-slate-800/60">
-                <!-- Rows injected by JavaScript -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 2: 시계열 자산 변동 추이 (Historical Trend) -->
-    <div id="tabContent-history" class="tab-content hidden space-y-6">
-      <div class="card-glass rounded-2xl p-5">
-        <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
+    <!-- ============================================================= -->
+    <!-- 🛒 HERO CARD: 리밸런싱 주문 바스켓 & 1초 체결                 -->
+    <!-- ============================================================= -->
+    <div class="card-glass rounded-2xl p-5 space-y-4 shadow-xl shadow-sky-950/20">
+      
+      <!-- Card Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800/80">
+        <div class="flex items-center space-x-2">
+          <span class="text-lg">🛒</span>
           <div>
-            <h2 class="text-sm font-bold text-slate-200">기간별 순자산 추이 (6월 23일 ~ 현재)</h2>
-            <p class="text-xs text-slate-400">실제 종목별 종가 및 원/달러 환율 사이클 반영 곡선</p>
-          </div>
-          <div class="text-right">
-            <span class="text-xs text-slate-400">기준 기간 변동:</span>
-            <span id="historyChangeBadge" class="text-xs font-bold text-rose-400 ml-1">계산 중...</span>
+            <h2 class="text-sm font-bold text-slate-100">실행 대기 주문</h2>
+            <p id="basketSubtitle" class="text-[10px] text-slate-400">Gemini 제안 수신 대기 중</p>
           </div>
         </div>
-        <div id="historyTrendChart" class="min-h-[320px]"></div>
+        <span id="basketCountBadge" class="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-mono font-bold">
+          0건
+        </span>
       </div>
 
-      <!-- Historical Data Table -->
-      <div class="card-glass rounded-2xl p-5">
-        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">월별 결산 기록 타임라인</h3>
+      <!-- Empty State -->
+      <div id="basketEmptyMessage" class="py-8 text-center space-y-3">
+        <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-850 border border-slate-850 flex items-center justify-center text-xl text-slate-400">
+          📥
+        </div>
+        <div>
+          <p class="text-xs font-bold text-slate-200">대기 중인 리밸런싱 주문이 없습니다.</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Gemini PB가 제안한 링크를 터치하거나, 코드를 붙여넣으세요.</p>
+        </div>
+        <div class="flex items-center justify-center space-x-2 pt-2">
+          <button onclick="importOrderFromClipboard()" class="py-2 px-3 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 active:scale-95">
+            <span>📥 Gemini 주문 붙여넣기</span>
+          </button>
+          <button onclick="openGeminiApp()" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 active:scale-95">
+            <span>🧠 Gemini PB 열기</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Orders Table / Cards (Hidden when empty) -->
+      <div id="basketActiveArea" class="hidden space-y-3">
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="text-[11px] bg-slate-800/60 text-slate-400">
+          <table class="w-full text-xs">
+            <thead class="text-[10px] text-slate-400 border-b border-slate-800">
               <tr>
-                <th class="py-2 px-3 rounded-l-lg">기준 일자</th>
-                <th class="py-2 px-3 text-right">총 순자산</th>
-                <th class="py-2 px-3 text-right">현금성 예수금</th>
-                <th class="py-2 px-3 text-right">현금 비중</th>
-                <th class="py-2 px-3 rounded-r-lg">비고 / 시장 이벤트</th>
+                <th class="py-2 px-2 text-left">구분</th>
+                <th class="py-2 px-2 text-left">종목</th>
+                <th class="py-2 px-2 text-center">수량</th>
+                <th class="py-2 px-1 text-center">삭제</th>
               </tr>
             </thead>
-            <tbody id="historyTableBody" class="divide-y divide-slate-800/60">
-              <!-- Injected by JS -->
+            <tbody id="basketTableBody" class="divide-y divide-slate-800/60 font-mono">
+              <!-- Dynamically rendered -->
             </tbody>
           </table>
         </div>
+
+        <!-- 📊 Before & After Simulation Box -->
+        <div id="basketSimulationBox" class="p-3 bg-slate-900/80 border border-slate-800 rounded-xl text-xs space-y-2 hidden">
+          <div class="flex items-center justify-between text-[11px] font-bold text-slate-300">
+            <span class="flex items-center space-x-1.5">
+              <span>📊</span>
+              <span>체결 후 예상 비중 변화 (Simulation)</span>
+            </span>
+            <span class="text-[10px] text-sky-400 font-normal">* 보유 평가액 기준</span>
+          </div>
+          <div id="basketSimulationList" class="space-y-1.5 text-[11px]">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Pipeline Guard Info -->
+        <div class="p-2.5 bg-indigo-950/20 border border-indigo-500/20 rounded-xl text-[11px] text-indigo-300 flex items-center justify-between">
+          <span class="flex items-center space-x-1.5">
+            <span>🛡️</span>
+            <span>Sell-First 파이프라인 (매도 ➔ 매수)</span>
+          </span>
+          <span class="text-[10px] text-slate-400 font-mono">1회 최대 100주 제한</span>
+        </div>
+
+        <!-- 🚀 PRIMARY ACTION: 1-TOUCH BIOMETRIC EXECUTION BUTTON -->
+        <button id="btnSubmitBatch" onclick="sendBatchOrder()" class="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 via-sky-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white rounded-xl font-bold text-sm shadow-xl shadow-sky-600/20 transition-all flex items-center justify-center space-x-2 active:scale-98">
+          <span class="text-base">👆</span>
+          <span id="btnSubmitBatchText">지문 센서 터치로 1초 일괄 체결</span>
+        </button>
+
+        <!-- Secondary Controls -->
+        <div class="flex items-center space-x-2 pt-1 text-xs">
+          <button onclick="importOrderFromClipboard()" class="flex-1 py-2 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-700/80 font-bold transition-all flex items-center justify-center space-x-1">
+            <span>📥 추가 붙여넣기</span>
+          </button>
+          <button onclick="openAddStockModal()" class="py-2 px-3 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-700/80 font-bold transition-all">
+            ➕ 직접 추가
+          </button>
+          <button onclick="clearBasket()" class="py-2 px-3 bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700/80 font-bold transition-all">
+            🗑️ 비우기
+          </button>
+        </div>
       </div>
+
     </div>
 
-    <!-- TAB 3: 더리치 캡처 AI 자동 동기화 (Gemini Vision) -->
-    <div id="tabContent-geminiVision" class="tab-content hidden space-y-6">
-      <div class="card-glass rounded-2xl p-6">
-        <div class="flex items-center space-x-3 mb-4">
-          <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center text-xl">
-            📸
-          </div>
+    <!-- ============================================================= -->
+    <!-- 🧠 GEMINI PB SHORTCUT CARD (도미노 캡처 분석 안내)           -->
+    <!-- ============================================================= -->
+    <div class="card-glass rounded-2xl p-4 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center text-lg shrink-0">
+          🧠
+        </div>
+        <div>
+          <h3 class="text-xs font-bold text-slate-200">Gemini PB 전담 비서</h3>
+          <p class="text-[11px] text-slate-400">도미노 캡처 사진을 전송하고 1초 주문 링크를 생성하세요.</p>
+        </div>
+      </div>
+      <button onclick="openGeminiApp()" class="py-2 px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-600/20 shrink-0 transition-all active:scale-95">
+        열기 ↗
+      </button>
+    </div>
+
+    <!-- ============================================================= -->
+    <!-- 📄 COLLAPSIBLE: 최근 체결 내역 & 계좌 잔고 간편 조회         -->
+    <!-- ============================================================= -->
+    <div class="card-glass rounded-2xl overflow-hidden">
+      <button onclick="toggleInquiryAccordion()" class="w-full p-4 flex items-center justify-between text-left hover:bg-slate-800/40 transition-colors">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-base">📄</span>
           <div>
-            <h2 class="text-base font-bold text-slate-100">더리치 스크린샷 AI 자동 동기화</h2>
-            <p class="text-xs text-slate-400">폰에서 캡처 사진을 올리면 Gemini가 1초 만에 20개 종목을 파싱해 GitHub에 커밋합니다.</p>
+            <h3 class="text-xs font-bold text-slate-200">최근 체결 이력 & 계좌 잔고 (간편 조회)</h3>
+            <p class="text-[10px] text-slate-400">한투 클라우드 러너에서 접수된 최근 주문 내역</p>
+          </div>
+        </div>
+        <span id="inquiryAccordionIcon" class="text-slate-400 text-xs font-bold transition-transform">
+          ▼
+        </span>
+      </button>
+
+      <div id="inquiryContent" class="hidden p-4 pt-0 border-t border-slate-800/80 space-y-3 text-xs">
+        <!-- Recent Dispatch History List -->
+        <div>
+          <div class="flex items-center justify-between py-2 text-[11px] font-bold text-slate-300">
+            <span>⏱️ 최근 클라우드 체결 접수 기록</span>
+            <button onclick="clearDispatchHistory()" class="text-[10px] text-slate-500 hover:text-rose-400 underline">기록 비우기</button>
+          </div>
+          <div id="dispatchHistoryList" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            <!-- Dynamically populated from localStorage -->
           </div>
         </div>
 
-        <!-- Upload Box -->
-        <div id="dropZone" onclick="document.getElementById('screenshotInput').click()" class="border-2 border-dashed border-slate-700 hover:border-sky-500 rounded-2xl p-8 text-center cursor-pointer transition-all bg-slate-900/40">
-          <input type="file" id="screenshotInput" accept="image/*" class="hidden" onchange="handleImageSelected(event)">
-          <div class="flex flex-col items-center justify-center space-y-3">
-            <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-            <div class="text-sm font-semibold text-slate-200">
-              클릭하여 스크린샷 선택 <span class="text-slate-400 font-normal">또는 사진 끌어다 놓기</span>
-            </div>
-            <p class="text-xs text-slate-500">더리치 종목 비중 도넛 화면 또는 종목 리스트 캡처 (PNG, JPG, WEBP)</p>
+        <!-- Cached Holdings Table (Optional reference) -->
+        <div class="pt-2 border-t border-slate-800/60">
+          <div class="flex items-center justify-between py-1 text-[11px] font-bold text-slate-300">
+            <span>💼 등록된 보유 종목 (금고 캐시)</span>
+            <span id="cachedHoldingsCount" class="text-[10px] text-slate-400">0종목</span>
           </div>
-        </div>
-
-        <!-- Status / Progress -->
-        <div id="aiProcessingStatus" class="hidden mt-4 p-4 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center space-x-3">
-          <div class="animate-spin w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full"></div>
-          <span class="text-xs text-sky-300 font-medium" id="aiStatusText">Gemini 1.5 Flash Vision이 스크린샷을 분석 중입니다...</span>
-        </div>
-
-        <!-- Parsed Results Preview & Confirm -->
-        <div id="parsedResultSection" class="hidden mt-6 space-y-4">
-          <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-700">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="text-sm font-bold text-emerald-400 flex items-center space-x-1.5">
-                <span>✅ AI 인식 완료 (미리보기 및 검증)</span>
-              </h3>
-              <span id="parsedTotalAmount" class="text-xs font-bold text-slate-200"></span>
-            </div>
-            <div class="overflow-x-auto max-h-60 overflow-y-auto">
-              <table class="w-full text-xs text-left">
-                <thead class="text-[10px] text-slate-400 bg-slate-800">
-                  <tr>
-                    <th class="p-2">종목명</th>
-                    <th class="p-2">티커</th>
-                    <th class="p-2 text-right">비중(%)</th>
-                    <th class="p-2 text-right">평가금액</th>
-                  </tr>
-                </thead>
-                <tbody id="parsedItemsTableBody" class="divide-y divide-slate-800">
-                  <!-- dynamic -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="flex space-x-3">
-            <button onclick="commitParsedDataToGitHub()" class="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2">
-              <span>💾 내 GitHub Private Repo에 커밋 & 영구 저장</span>
-            </button>
-            <button onclick="cancelParsedData()" class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium">
-              취소
-            </button>
+          <div id="cachedHoldingsList" class="max-h-36 overflow-y-auto space-y-1 text-[11px]">
+            <!-- Dynamically populated -->
           </div>
         </div>
       </div>
     </div>
-
-    
-
-                
-
-        
 
   </main>
 
-  <!-- Rebalancing Basket Modal -->
-  <div id="basketModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
-    <div class="card-glass bg-slate-900 border border-indigo-500/40 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl shadow-indigo-500/10">
-      
-      <!-- Header -->
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <div class="flex items-center space-x-2">
-          <span class="text-xl">🛒</span>
-          <div>
-            <h3 class="text-sm font-bold text-slate-100">리밸런싱 주문 바스켓 (Batch Order)</h3>
-            <p class="text-[10px] text-slate-400">여러 종목을 묶어 Sell-First(매도 ➔ 매수) 파이프라인으로 일괄 체결</p>
-          </div>
-        </div>
-        <button onclick="closeBasketModal()" class="text-slate-400 hover:text-slate-200 text-lg">✕</button>
+  <!-- ============================================================= -->
+  <!-- 🎉 MODAL: 체결 접수 성공 및 Gemini 피드백 루프                -->
+  <!-- ============================================================= -->
+  <div id="successModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="card-glass bg-slate-900 border border-slate-700 rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl animate-fade-in">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-3xl shadow-lg shadow-emerald-500/10">
+        🎉
       </div>
 
-      <!-- Basket Items Table -->
-      <div class="max-h-60 overflow-y-auto pr-1">
-        <table class="w-full text-left text-xs">
-          <thead class="text-[10px] uppercase bg-slate-800/80 text-slate-400 sticky top-0">
-            <tr>
-              <th class="py-2 px-2.5">종목/티커</th>
-              <th class="py-2 px-2 text-center">구분</th>
-              <th class="py-2 px-2 text-center">수량</th>
-              <th class="py-2 px-1 text-center">삭제</th>
-            </tr>
-          </thead>
-          <tbody id="basketTableBody" class="divide-y divide-slate-800/50">
-            <!-- Dynamic items -->
-          </tbody>
-        </table>
-        <div id="basketEmptyMessage" class="py-8 text-center text-slate-500 text-xs hidden">
-          바스켓이 비어있습니다.<br>포트폴리오 테이블에서 [🛒 담기]를 눌러 추가해주세요.
-        </div>
-      </div>
-
-      <!-- 📊 Rebalancing Before & After Simulation Box -->
-      <div id="basketSimulationBox" class="p-3 bg-slate-850/80 border border-slate-700/70 rounded-xl text-xs space-y-2 hidden">
-        <div class="flex items-center justify-between text-[11px] font-bold text-slate-300">
-          <span class="flex items-center space-x-1.5">
-            <span>📊</span>
-            <span>체결 후 예상 비중 변화 (Simulation)</span>
-          </span>
-          <span class="text-[10px] text-sky-400 font-normal">* 현재 평가액 기준 추산</span>
-        </div>
-        <div id="basketSimulationList" class="space-y-1.5 text-[11px]">
-          <!-- Dynamically populated -->
-        </div>
-      </div>
-
-      <!-- Pipeline Info -->
-      <div class="p-3 bg-indigo-950/30 border border-indigo-500/20 rounded-xl text-[11px] text-indigo-300 space-y-1">
-        <div class="flex justify-between font-bold">
-          <span id="basketSummaryCount">총 0건</span>
-          <span>1회 최대 100주 / 10종목 하드 리밋</span>
-        </div>
-        <p class="text-[10px] text-slate-400">
-          * 매도(SELL) 주문이 먼저 실행되어 예수금을 확보한 후 매수(BUY)가 순차 실행됩니다.
-        </p>
-      </div>
-
-      <!-- Action Buttons -->
-      <div class="flex items-center space-x-2 pt-2">
-        <button onclick="importOrderFromClipboard()" class="py-2.5 px-3 bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 rounded-xl font-bold text-xs border border-emerald-500/30 transition-all flex items-center space-x-1" title="Gemini 제안 코드 붙여넣기">
-          <span>📥 불러오기</span>
-        </button>
-        <button onclick="clearBasket()" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-xs border border-slate-700 transition-all">
-          🗑️ 비우기
-        </button>
-        <button id="btnSubmitBatch" onclick="sendBatchOrder()" class="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center space-x-1.5">
-          <span>🚀 6자리 PIN 인증 후 일괄 전송</span>
-        </button>
-      </div>
-
-      <!-- Sub Action Button: Gemini Review -->
       <div>
-        <button onclick="exportBasketToGeminiPro()" class="w-full py-2.5 bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border border-purple-500/30 rounded-xl font-bold text-xs transition-all flex items-center justify-center space-x-1.5" title="담긴 바스켓의 리스크와 적절성을 Gemini에게 재검토 요청">
-          <span>🧠</span>
-          <span>Gemini Pro에게 이 바스켓 재검토 요청</span>
-        </button>
+        <h3 class="text-base font-bold text-slate-100">한투 일괄 체결 접수 완료!</h3>
+        <p id="successSubtitle" class="text-xs text-slate-400 mt-1">클라우드 러너에서 증권사 주문이 정상 집행됩니다.</p>
       </div>
+
+      <!-- Executed summary box -->
+      <div id="successSummaryBox" class="p-3 bg-slate-950/70 border border-slate-800 rounded-xl text-left text-xs font-mono space-y-1 text-slate-300 max-h-36 overflow-y-auto">
+        <!-- populated dynamically -->
+      </div>
+
+      <p class="text-[10px] text-slate-400">
+        * 체결 영수증이 텔레그램 봇으로 즉시 발송됩니다.
+      </p>
+
+      <!-- Primary Action: Gemini Feedback Loop Button -->
+      <button onclick="reportSuccessToGemini()" class="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center space-x-1.5 active:scale-95">
+        <span>📋 체결 결과 복사 & Gemini에 보고하기 ↗</span>
+      </button>
+
+      <button onclick="closeSuccessModal()" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors">
+        닫기
+      </button>
     </div>
   </div>
 
-  <!-- Floating Basket Widget (우측 하단 플로팅 배지) -->
-  <div id="floatingBasketWidget" class="fixed bottom-6 right-6 z-40 hidden">
-    <button onclick="openBasketModal()" class="px-4 py-3 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white rounded-2xl font-bold text-xs shadow-xl shadow-indigo-600/40 flex items-center space-x-2 transition-transform transform hover:scale-105 active:scale-95 border border-indigo-400/30">
-      <span class="text-base">🛒</span>
-      <span>리밸런싱 바스켓</span>
-      <span id="floatingBasketCount" class="px-2 py-0.5 bg-white text-indigo-700 rounded-full font-black text-[11px]">0</span>
-    </button>
-  </div>
-
-  <!-- KIS Stock Order Modal -->
-  <div id="orderModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
-    <div class="card-glass bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl shadow-sky-500/10">
-      
-      <!-- Modal Header -->
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <div class="flex items-center space-x-2">
-          <span class="text-xl">🚀</span>
-          <div>
-            <h3 class="text-sm font-bold text-slate-100">한국투자증권(KIS) 원클릭 주문</h3>
-            <p class="text-[10px] text-slate-400">GitHub Actions 클라우드 러너를 통한 서버리스 직통 체결</p>
-          </div>
-        </div>
-        <button onclick="closeOrderModal()" class="text-slate-400 hover:text-slate-200 text-lg">✕</button>
-      </div>
-
-      <!-- Target Stock Info -->
-      <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60 flex items-center justify-between">
-        <div>
-          <span id="orderStockName" class="text-xs font-bold text-slate-200 block">엔비디아 (NVDA)</span>
-          <span class="text-[10px] text-slate-400">대상 종목</span>
-        </div>
-        <div class="text-right">
-          <input type="text" id="orderTicker" value="NVDA" class="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-xs font-mono font-bold text-sky-400 focus:outline-none focus:border-sky-500 uppercase">
-        </div>
-      </div>
-
-      <!-- Buy / Sell Tabs -->
-      <div class="flex rounded-xl bg-slate-800/80 p-1 border border-slate-700">
-        <button type="button" id="tabBuy" onclick="setOrderType('BUY')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-rose-600 text-white shadow-md shadow-rose-600/30">
-          매수 (BUY)
-        </button>
-        <button type="button" id="tabSell" onclick="setOrderType('SELL')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200">
-          매도 (SELL)
-        </button>
-      </div>
-
-      <!-- Quantity Selection -->
-      <div class="space-y-1.5 text-xs">
-        <div class="flex items-center justify-between">
-          <label class="font-semibold text-slate-300">주문 수량</label>
-          <span class="text-[10px] text-slate-400">단위: 주</span>
-        </div>
-        <div class="flex space-x-2">
-          <button type="button" onclick="adjustOrderQty(-1)" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold hover:bg-slate-700 text-sm">-</button>
-          <input type="number" id="orderQty" value="1" min="1" max="10000" class="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-2 text-center text-slate-100 font-mono font-bold text-base focus:outline-none focus:border-sky-500">
-          <button type="button" onclick="adjustOrderQty(1)" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold hover:bg-slate-700 text-sm">+</button>
-        </div>
-        <div class="flex space-x-1.5 pt-1">
-          <button type="button" onclick="setOrderQty(1)" class="flex-1 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700/60">+1주</button>
-          <button type="button" onclick="setOrderQty(5)" class="flex-1 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700/60">+5주</button>
-          <button type="button" onclick="setOrderQty(10)" class="flex-1 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-700 text-[11px] text-slate-300 border border-slate-700/60">+10주</button>
-        </div>
-      </div>
-
-      <!-- Order Price Mode (Market vs Limit) -->
-      <div class="space-y-1.5 text-xs">
-        <div class="flex items-center justify-between">
-          <label class="font-semibold text-slate-300">주문 가격</label>
-          <div class="flex items-center space-x-2 text-[11px]">
-            <label class="cursor-pointer flex items-center space-x-1">
-              <input type="radio" name="priceMode" value="MARKET" checked onchange="togglePriceMode(this.value)" class="text-sky-500">
-              <span class="text-slate-300">시장가</span>
-            </label>
-            <label class="cursor-pointer flex items-center space-x-1">
-              <input type="radio" name="priceMode" value="LIMIT" onchange="togglePriceMode(this.value)" class="text-sky-500">
-              <span class="text-slate-300">지정가</span>
-            </label>
-          </div>
-        </div>
-        <div id="limitPriceBox" class="hidden">
-          <input type="number" id="orderPrice" placeholder="지정가 입력 (달러 또는 원화)" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-center text-slate-100 font-mono text-xs focus:outline-none focus:border-sky-500">
-        </div>
-      </div>
-
-      <!-- Status Progress Box -->
-      <div id="orderStatusBox" class="hidden p-3.5 rounded-xl bg-slate-800 border border-slate-700 space-y-1.5 text-xs">
-        <div class="flex items-center space-x-2">
-          <div id="orderSpinner" class="animate-spin w-4 h-4 border-2 border-sky-400 border-t-transparent rounded-full"></div>
-          <span id="orderStatusTitle" class="font-bold text-sky-400">주문 접수 중...</span>
-        </div>
-        <p id="orderStatusDesc" class="text-[11px] text-slate-400 leading-relaxed"></p>
-      </div>
-
-      <!-- Submit Buttons -->
-      <div class="flex space-x-2 pt-2">
-        <button type="button" id="btnSubmitOrder" onclick="sendKisOrder()" class="flex-1 py-3 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center space-x-1.5">
-          <span>🚀</span>
-          <span id="btnSubmitText">한투 주문 즉시 전송</span>
-        </button>
-        <button type="button" onclick="closeOrderModal()" class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">
-          취소
-        </button>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Settings Modal (GitHub Token & Gemini Key) -->
-  <div id="settingsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <!-- ============================================================= -->
+  <!-- ⚙️ MODAL: 서버리스 연동 및 보안 설정                          -->
+  <!-- ============================================================= -->
+  <div id="settingsModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
     <div class="card-glass bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 max-h-[88vh] flex flex-col shadow-2xl">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
-        <h3 class="text-base font-bold text-slate-100">⚙️ 서버리스 연동 설정</h3>
+        <h3 class="text-base font-bold text-slate-100">⚙️ 연동 및 보안 설정</h3>
         <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-200 text-lg p-1">✕</button>
       </div>
 
       <div class="flex-1 overflow-y-auto pr-1 space-y-4 text-xs">
+        <!-- GitHub Repo -->
         <div>
-          <label class="block font-semibold text-slate-300 mb-1">GitHub 저장소 경로 (기본 설정됨)</label>
-          <input type="text" id="settingGithubRepo" value="wooyeonlee0/my-assets" placeholder="wooyeonlee0/my-assets" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
-          <p class="text-[10px] text-slate-400 mt-1">자산 데이터가 커밋되는 본인의 GitHub 저장소 (필요 시 변경 가능)</p>
+          <label class="block font-semibold text-slate-300 mb-1">GitHub 저장소 경로</label>
+          <input type="text" id="settingGithubRepo" value="wooyeonlee0/my-assets" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-sky-500">
+          <p class="text-[10px] text-slate-400 mt-1">Actions 워크플로우(`kis_order.yml`)가 동작하는 본인의 저장소</p>
         </div>
 
+        <!-- GitHub PAT Token -->
         <div>
           <label class="block font-semibold text-slate-300 mb-1">GitHub Personal Access Token (PAT)</label>
-          <input type="password" id="settingGithubToken" placeholder="ghp_xxxxxxxxxxxx" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
-          <p class="text-[10px] text-slate-400 mt-1">Contents: Read & Write 권한이 있는 토큰 (폰 브라우저에만 암호화 보관)</p>
+          <input type="password" id="settingGithubToken" placeholder="ghp_xxxxxxxxxxxx" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-sky-500">
+          <p class="text-[10px] text-slate-400 mt-1">Actions Dispatch 권한이 있는 토큰 (휴대폰 브라우저에만 암호화 보관)</p>
         </div>
 
+        <!-- Telegram Bot -->
         <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="block font-semibold text-slate-300">Google Gemini API Key (무료)</label>
-            <button type="button" onclick="testGeminiKey()" class="text-[11px] text-sky-400 hover:text-sky-300 font-semibold underline">🧪 연결 테스트</button>
-          </div>
-          <input type="password" id="settingGeminiKey" placeholder="AIzaSyxxxxxxxxxxxx" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-slate-100 focus:outline-none focus:border-sky-500">
-          <p id="geminiTestStatus" class="text-[11px] mt-1.5 hidden"></p>
-          <p class="text-[10px] text-slate-400 mt-1"><a href="https://aistudio.google.com" target="_blank" class="text-sky-400 underline">aistudio.google.com</a>에서 카드 없이 1초 발급 (이미지 자동인식 및 AI 비서용)</p>
-        </div>
-
-                        <div class="p-3 bg-purple-950/30 border border-purple-500/20 rounded-xl space-y-1.5">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-purple-200">⚡ Gemini Skills 전용 영구 지침</span>
-            <button type="button" onclick="copySkillInstruction()" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-[11px] font-bold">
-              스킬 지침 복사 ↗
-            </button>
-          </div>
-          <p class="text-[10px] text-slate-400">Gemini 좌측 사이드바 [맞춤설정 ➔ Skills]에 등록해두면, 긴 대화 중에도 @valiant-pb로 주문 링크 포맷을 영구 보존합니다.</p>
-        </div>
-
-        <div>
-          <label class="block font-semibold text-slate-300 mb-1">텔레그램 체결 영수증 알림 봇 Username</label>
+          <label class="block font-semibold text-slate-300 mb-1">텔레그램 체결 알림 봇</label>
           <div class="flex items-center">
             <span class="px-2.5 py-2.5 bg-slate-800 border border-r-0 border-slate-700 rounded-l-lg text-slate-400 font-mono text-xs">@</span>
             <input type="text" id="settingTelegramBot" placeholder="wooyeon_asset_bot" value="wooyeon_asset_bot" class="flex-1 bg-slate-800 border border-slate-700 rounded-r-lg p-2.5 text-slate-100 font-mono text-xs focus:outline-none focus:border-sky-500">
           </div>
-          <p class="text-[10px] text-slate-400 mt-1">한투 API 주문 체결 완료 후 1줄 영수증 푸시를 전송할 본인의 텔레그램 봇 ID</p>
+          <p class="text-[10px] text-slate-400 mt-1">주문 체결 즉시 영수증을 수신할 본인의 텔레그램 봇 ID</p>
         </div>
 
-        <!-- 👆 Biometric Security Management Card -->
+        <!-- 👆 WebAuthn Biometric / Passkey Management Card -->
         <div class="pt-2 border-t border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
             <div class="flex items-center space-x-1.5">
@@ -638,17 +341,20 @@
             <span id="biometricBadge" class="text-[10px] font-mono px-2 py-0.5 rounded border text-slate-400 bg-slate-800 border-slate-700">확인 중...</span>
           </div>
           <div id="biometricControls" class="flex space-x-2">
-            <!-- Dynamic Buttons rendered by updateBiometricSettingsUI -->
+            <button type="button" id="btnRegisterBio" onclick="setupBiometricFromSettings()" class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 transition-all">
+              <span>👆 이 기기에 지문 / 패스키 등록</span>
+            </button>
           </div>
           <p class="text-[10px] text-slate-400 space-y-1">
-            <span>스마트폰의 지문(Touch ID) / 얼굴(Face ID) 센서를 연동하여 6자리 PIN 입력 없이 1초 터치만으로 금고 해제 및 주문 전송을 승인합니다.</span>
+            <span>스마트폰의 지문(Touch ID) / 얼굴(Face ID) 센서를 연동하여 6자리 PIN 입력 없이 1초 터치만으로 주문 전송을 승인합니다.</span>
             <span class="block text-sky-400/90 font-medium pt-0.5">💡 등록 시 휴대폰 화면에 '패스키(Passkey)' 팝업이 뜨면 [계속]을 누르시고 지문을 터치하시면 됩니다.</span>
           </p>
         </div>
 
+        <!-- 🔐 PIN Management -->
         <div class="pt-2 border-t border-slate-800 space-y-2">
           <div class="flex items-center justify-between">
-            <label class="block font-semibold text-slate-200">🔐 금고 PIN 번호 변경 (6자리)</label>
+            <label class="block font-semibold text-slate-200">🔐 백업 6자리 보안 PIN 변경</label>
             <span id="pinChangeStatus" class="text-[11px] font-semibold hidden"></span>
           </div>
           <div class="flex space-x-2">
@@ -657,10 +363,11 @@
               PIN 변경
             </button>
           </div>
-          <p class="text-[10px] text-slate-400">PIN 변경 시 새 비밀번호로 금고 파일이 즉시 재암호화됩니다.</p>
+          <p class="text-[10px] text-slate-400">지문 센서 미지원 환경에서 주문 승인에 쓰이는 6자리 비밀번호입니다.</p>
         </div>
       </div>
 
+      <!-- Action Buttons -->
       <div class="flex space-x-2 pt-2">
         <button onclick="saveSettings()" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold text-xs transition-colors">
           설정 저장
@@ -672,168 +379,70 @@
     </div>
   </div>
 
-  <!-- Mobile Bottom Sticky Navigation (5-Tab Mobile Thumb Bar) -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/80 px-2 py-1.5 flex justify-around items-center shadow-2xl">
-    <button id="navBtn-allocation" onclick="switchTab('allocation')" class="flex flex-col items-center text-[10px] text-sky-400 font-bold py-1 px-2 active:scale-95 transition-transform">
-      <span class="text-base">🍩</span>
-      <span>비중</span>
-    </button>
-    <button id="navBtn-history" onclick="switchTab('history')" class="flex flex-col items-center text-[10px] text-slate-400 font-medium py-1 px-2 active:scale-95 transition-transform">
-      <span class="text-base">📈</span>
-      <span>추이</span>
-    </button>
-    <button onclick="importOrderFromClipboard()" class="flex flex-col items-center text-[10px] text-emerald-400 font-bold py-1 px-2 active:scale-95 transition-transform" title="Gemini 제안 원클릭 불러오기">
-      <span class="text-base">📥</span>
-      <span>불러오기</span>
-    </button>
-    <button onclick="openBasketModal()" class="flex flex-col items-center text-[10px] text-indigo-400 font-bold py-1 px-2 relative active:scale-95 transition-transform" title="주문 바스켓 열기">
-      <span class="text-base">🛒</span>
-      <span>바스켓</span>
-      <span id="basketNavBadge" class="hidden absolute top-0.5 right-1 px-1.5 py-0.2 bg-indigo-500 text-white rounded-full text-[9px] font-bold">0</span>
-    </button>
-    <button onclick="exportToGeminiPro()" class="flex flex-col items-center text-[10px] text-purple-400 font-semibold py-1 px-2 active:scale-95 transition-transform" title="포트폴리오 복사 & Gemini 열기">
-      <span class="text-base">🧠</span>
-      <span>Gemini</span>
-    </button>
-  </nav>
+  <!-- ============================================================= -->
+  <!-- ➕ MODAL: 종목 수동 직접 추가                                 -->
+  <!-- ============================================================= -->
+  <div id="addStockModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="card-glass bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <h3 class="text-sm font-bold text-slate-100">➕ 주문 종목 직접 추가</h3>
+        <button onclick="closeAddStockModal()" class="text-slate-400 hover:text-slate-200 text-lg p-1">✕</button>
+      </div>
 
-  <!-- Embedded Real Datasets & Client-Side Engine -->
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">티커 또는 종목코드</label>
+          <input type="text" id="manualTickerInput" placeholder="예: TSLA 또는 005930" class="w-full bg-slate-850 border border-slate-700 rounded-lg p-2.5 text-slate-100 uppercase font-mono text-xs focus:outline-none focus:border-sky-500">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">종목명 (선택)</label>
+          <input type="text" id="manualNameInput" placeholder="예: 테슬라" class="w-full bg-slate-850 border border-slate-700 rounded-lg p-2.5 text-slate-100 text-xs focus:outline-none focus:border-sky-500">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">매매 구분</label>
+            <select id="manualSideInput" class="w-full bg-slate-850 border border-slate-700 rounded-lg p-2.5 text-slate-100 text-xs font-bold focus:outline-none focus:border-sky-500">
+              <option value="SELL" class="text-rose-400 font-bold">🔴 매도 (SELL)</option>
+              <option value="BUY" class="text-emerald-400 font-bold">🟢 매수 (BUY)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">주문 수량 (주)</label>
+            <input type="number" id="manualQtyInput" value="1" min="1" max="100" class="w-full bg-slate-850 border border-slate-700 rounded-lg p-2.5 text-slate-100 font-bold font-mono text-xs focus:outline-none focus:border-sky-500 text-center">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="submitManualStock()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs transition-colors">
+          바스켓에 담기
+        </button>
+        <button onclick="closeAddStockModal()" class="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs">
+          취소
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-5 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <!-- ============================================================= -->
+  <!-- JAVASCRIPT APPLICATION CORE                                   -->
+  <!-- ============================================================= -->
   <script>
     // -------------------------------------------------------------
-    // 1. In-Memory Decrypted Datasets (소스코드 내 실데이터 0바이트)
+    // Global Constants & State
     // -------------------------------------------------------------
-    let currentPortfolio = {
-      total_net_worth: 0,
-      total_cash: 0,
-      cash_ratio: 0,
-      positions: []
-    };
-
-    let historyRecords = [];
-    let donutChartInstance = null;
-    let historyChartInstance = null;
-    let tempParsedPositions = null;
+    const DEFAULT_REPO = 'wooyeonlee0/my-assets';
+    let orderBasket = [];
     let currentUnlockedPin = null;
-    let currentPinBuffer = '';
+    let currentPortfolio = { total_net_worth: 0, total_cash: 0, cash_ratio: 0, positions: [] };
+    let lastExecutedSummary = "";
 
     // -------------------------------------------------------------
-    // Web Crypto API 256-bit AES-GCM Helpers
+    // 👆 WebAuthn Biometric Authentication Module (지문 / 패스키)
     // -------------------------------------------------------------
-    function hexToBuf(hex) {
-      const bytes = new Uint8Array(Math.ceil(hex.length / 2));
-      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-      return bytes;
-    }
-
-    function bufToHex(buf) {
-      return Array.prototype.map.call(new Uint8Array(buf), x => ('00' + x.toString(16)).slice(-2)).join('');
-    }
-
-    async function deriveKey(pin, saltBuf) {
-      const enc = new TextEncoder();
-      const keyMaterial = await window.crypto.subtle.importKey(
-        "raw",
-        enc.encode(pin),
-        { name: "PBKDF2" },
-        false,
-        ["deriveKey"]
-      );
-      return await window.crypto.subtle.deriveKey(
-        {
-          name: "PBKDF2",
-          salt: saltBuf,
-          iterations: 100000,
-          hash: "SHA-256"
-        },
-        keyMaterial,
-        { name: "AES-GCM", length: 256 },
-        false,
-        ["encrypt", "decrypt"]
-      );
-    }
-
-    async function decryptVaultData(vaultJson, pin) {
-      const salt = hexToBuf(vaultJson.salt);
-      const iv = hexToBuf(vaultJson.iv);
-      const rawCipher = hexToBuf(vaultJson.ciphertext);
-      const key = await deriveKey(pin, salt);
-      const decryptedBuf = await window.crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: iv },
-        key,
-        rawCipher
-      );
-      const dec = new TextDecoder();
-      return JSON.parse(dec.decode(decryptedBuf));
-    }
-
-    async function encryptVaultData(vaultData, pin) {
-      const salt = window.crypto.getRandomValues(new Uint8Array(16));
-      const iv = window.crypto.getRandomValues(new Uint8Array(12));
-      const key = await deriveKey(pin, salt);
-      const enc = new TextEncoder();
-      const plaintextBuf = enc.encode(JSON.stringify(vaultData));
-      const cipherBuf = await window.crypto.subtle.encrypt(
-        { name: "AES-GCM", iv: iv },
-        key,
-        plaintextBuf
-      );
-      return {
-        v: 1,
-        salt: bufToHex(salt),
-        iv: bufToHex(iv),
-        ciphertext: bufToHex(cipherBuf)
-      };
-    }
-
-    // -------------------------------------------------------------
-    // PIN Keypad & Lock Screen Logic
-    // -------------------------------------------------------------
-    function updatePinDots() {
-      for (let i = 0; i < 6; i++) {
-        const dot = document.getElementById(`pinDot${i}`);
-        if (!dot) continue;
-        if (i < currentPinBuffer.length) {
-          dot.className = "w-3.5 h-3.5 rounded-full bg-sky-400 border-2 border-sky-400 transition-all duration-150 scale-110 shadow-lg shadow-sky-400/50";
-        } else {
-          dot.className = "w-3.5 h-3.5 rounded-full border-2 border-slate-600 transition-all duration-150";
-        }
-      }
-    }
-
-    function pressPinKey(num) {
-      if (currentPinBuffer.length >= 6) return;
-      currentPinBuffer += num;
-      updatePinDots();
-      const pinInput = document.getElementById('pinInput');
-      if (pinInput) pinInput.value = currentPinBuffer;
-
-      if (currentPinBuffer.length === 6) {
-        unlockVault(currentPinBuffer);
-      }
-    }
-
-    function deletePinKey() {
-      if (currentPinBuffer.length > 0) {
-        currentPinBuffer = currentPinBuffer.slice(0, -1);
-        updatePinDots();
-        const pinInput = document.getElementById('pinInput');
-        if (pinInput) pinInput.value = currentPinBuffer;
-      }
-    }
-
-    function clearPinInput() {
-      currentPinBuffer = '';
-      updatePinDots();
-      const pinInput = document.getElementById('pinInput');
-      if (pinInput) pinInput.value = '';
-      const statusMsg = document.getElementById('lockStatusMsg');
-      if (statusMsg) statusMsg.innerText = '';
-    }
-
-    
-    // =============================================================
-    // 👆 WebAuthn Biometric Authentication Module (지문 / Face ID)
-    // =============================================================
     const BIO_STORAGE_KEY = 'valiant_bio_cred';
     const BIO_PAYLOAD_KEY = 'valiant_bio_vault';
 
@@ -928,7 +537,7 @@
       const createOptions = {
         publicKey: {
           rp: {
-            name: "VALIANT ASSET VAULT",
+            name: "VALIANT TRADING REMOTE",
             id: window.location.hostname || "localhost"
           },
           user: {
@@ -968,7 +577,7 @@
       return true;
     }
 
-    async function authenticateWithBiometrics(reasonMsg = "보안 인증을 위해 지문/Face ID를 인증하세요") {
+    async function authenticateWithBiometrics(reasonMsg = "주문 일괄 전송을 승인하려면 지문 센서를 터치하세요") {
       if (!isBiometricRegistered()) {
         throw new Error("등록된 생체인증이 없습니다.");
       }
@@ -1005,37 +614,13 @@
       localStorage.removeItem(BIO_STORAGE_KEY);
       localStorage.removeItem(BIO_PAYLOAD_KEY);
       updateBiometricSettingsUI();
-      updateLockOverlayBiometricUI();
+      updateHeaderBioBadge();
       showToast("🗑️ 생체인증 해제", "기기에 등록된 지문인증 자격증명이 삭제되었습니다.", "🗑️");
     }
     window.removeBiometric = removeBiometric;
 
-    async function unlockWithBiometrics() {
-      const statusMsg = document.getElementById('lockStatusMsg');
-      try {
-        if (statusMsg) {
-          statusMsg.innerText = "👆 지문 센서를 터치하세요...";
-          statusMsg.className = "text-xs font-semibold text-sky-400 min-h-[18px]";
-        }
-        const pin = await authenticateWithBiometrics("금고 잠금 해제를 위해 지문 센서를 터치하세요");
-        if (pin && pin.length === 6) {
-          currentPinBuffer = pin;
-          updatePinDots();
-          await unlockVault(pin);
-          showToast("👆 지문인증 잠금 해제 성공", "생체인증으로 금고를 복호화했습니다.", "💎");
-        }
-      } catch (err) {
-        console.warn("생체인증 실패 또는 취소:", err);
-        if (statusMsg) {
-          statusMsg.innerText = "ℹ️ 생체인증이 취소되었습니다. 6자리 PIN을 직접 입력하세요.";
-          statusMsg.className = "text-xs font-semibold text-amber-400 min-h-[18px]";
-        }
-      }
-    }
-    window.unlockWithBiometrics = unlockWithBiometrics;
-
     async function setupBiometricFromSettings() {
-      const pinToUse = currentUnlockedPin || prompt("🔐 생체인증에 등록할 현재 6자리 보안 PIN을 입력하세요:");
+      const pinToUse = currentUnlockedPin || localStorage.getItem('valiant_saved_pin') || prompt("🔐 생체인증(패스키)에 연동할 현재 6자리 보안 PIN을 입력하세요:");
       if (!pinToUse || pinToUse.trim().length !== 6) {
         alert("❌ 유효한 6자리 PIN을 입력해야 생체인증을 등록할 수 있습니다.");
         return;
@@ -1046,8 +631,8 @@
         if (btn) btn.innerHTML = "<span>👆 지문 센서 터치 대기 중...</span>";
         await registerBiometric(pinToUse.trim());
         updateBiometricSettingsUI();
-        updateLockOverlayBiometricUI();
-        alert(`🎉 [생체인증 등록 완료]\n\n이 기기의 지문 센서(패스키)가 성공적으로 등록되었습니다.\n이제 6자리 PIN 대신 1초 터치로 금고 해제 및 주문 승인이 가능합니다!`);
+        updateHeaderBioBadge();
+        alert(`🎉 [생체인증 등록 완료]\n\n이 기기의 지문 센서(패스키)가 성공적으로 등록되었습니다.\n이제 6자리 PIN 대신 1초 터치로 주문 승인이 가능합니다!`);
       } catch (e) {
         console.error("생체인증 등록 실패:", e);
         alert("❌ 생체인증 등록 실패: " + (e.message || e));
@@ -1074,7 +659,7 @@
         badge.innerText = "✅ 등록됨 (활성)";
         badge.className = "text-[10px] font-mono px-2 py-0.5 rounded border text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
         controls.innerHTML = `
-          <button type="button" onclick="unlockWithBiometrics()" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg font-bold text-xs flex items-center justify-center space-x-1">
+          <button type="button" onclick="testBiometricAuth()" class="flex-1 py-2 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg font-bold text-xs flex items-center justify-center space-x-1">
             <span>👆 테스트</span>
           </button>
           <button type="button" onclick="removeBiometric()" class="py-2 px-3 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-500/30 rounded-lg font-bold text-xs flex items-center justify-center space-x-1">
@@ -1093,1271 +678,37 @@
     }
     window.updateBiometricSettingsUI = updateBiometricSettingsUI;
 
-    function updateLockOverlayBiometricUI() {
-      const sec = document.getElementById('bioUnlockSection');
-      if (!sec) return;
+    async function testBiometricAuth() {
+      try {
+        const pin = await authenticateWithBiometrics("생체인증 테스트를 위해 지문 센서를 터치하세요");
+        if (pin) {
+          alert(`✅ [생체인증 테스트 성공]\n\n지문 센서가 정상 작동하며, 연동된 보안 PIN이 정상 복호화되었습니다.`);
+        }
+      } catch (e) {
+        alert(`❌ 테스트 취소 또는 실패: ${e.message || e}`);
+      }
+    }
+    window.testBiometricAuth = testBiometricAuth;
+
+    function updateHeaderBioBadge() {
+      const badge = document.getElementById('headerBioStatus');
+      const submitText = document.getElementById('btnSubmitBatchText');
+      if (!badge) return;
+
       if (isBiometricRegistered()) {
-        sec.classList.remove('hidden');
+        badge.innerText = "👆 지문(패스키) 1초 체결";
+        badge.className = "font-bold text-emerald-400 font-mono";
+        if (submitText) submitText.innerText = "지문 센서 터치로 1초 일괄 체결";
       } else {
-        sec.classList.add('hidden');
-      }
-    }
-    window.updateLockOverlayBiometricUI = updateLockOverlayBiometricUI;
-
-    function handlePinInput(val) {
-      const sanitized = val.replace(/[^0-9]/g, '').slice(0, 6);
-      currentPinBuffer = sanitized;
-      updatePinDots();
-      if (currentPinBuffer.length === 6) {
-        unlockVault(currentPinBuffer);
-      }
-    }
-
-    async function unlockVault(pin) {
-      const statusMsg = document.getElementById('lockStatusMsg');
-      statusMsg.innerText = "⏳ 보안 금고 해독 중...";
-      statusMsg.className = "text-xs font-semibold text-sky-400 min-h-[18px]";
-
-      try {
-        let vaultJson = null;
-        // 1. 로컬 캐시 또는 원격 data/vault.json 파일 fetch
-        const localVault = localStorage.getItem('valiant_vault_json');
-        if (localVault) {
-          try { vaultJson = JSON.parse(localVault); } catch(e) {}
-        }
-        if (!vaultJson) {
-          const res = await fetch('./data/vault.json?t=' + Date.now());
-          if (!res.ok) throw new Error("금고 데이터(vault.json)를 불러올 수 없습니다.");
-          vaultJson = await res.json();
-        }
-
-        // 2. Web Crypto API 복호화
-        const decrypted = await decryptVaultData(vaultJson, pin);
-        if (!decrypted || !decrypted.portfolio) {
-          throw new Error("올바른 자산 데이터 형식이 아닙니다.");
-        }
-
-        // 3. 복호화 성공 -> 메모리에 탑재
-        currentPortfolio = decrypted.portfolio;
-        historyRecords = decrypted.history || [];
-        currentUnlockedPin = pin;
-        localStorage.setItem('valiant_vault_json', JSON.stringify(vaultJson));
-
-        // 4. 자동 잠금 해제 유지 옵션
-        const remember = document.getElementById('rememberSessionCheck')?.checked;
-        if (remember) {
-          localStorage.setItem('valiant_saved_pin', pin);
-        }
-
-        // 5. 대시보드 렌더링
-        renderKPIs();
-        renderHoldingsTable();
-        renderHistoryTable();
-        renderDonutChart();
-        renderHistoryTrendChart();
-        if (orderBasket && orderBasket.length > 0) {
-          orderBasket.forEach(item => {
-            const match = (currentPortfolio.positions || []).find(p => (p.stock_code || '').toUpperCase() === item.ticker);
-            if (match) item.name = match.stock_name;
-          });
-          renderBasketUI();
-          openBasketModal();
-        }
-
-        // 6. 잠금 화면 해제
-        const overlay = document.getElementById('vaultLockOverlay');
-        overlay.classList.add('opacity-0', 'pointer-events-none');
-        setTimeout(() => overlay.classList.add('hidden'), 300);
-
-      } catch (err) {
-        console.error("금고 해제 실패:", err);
-        statusMsg.innerText = "❌ PIN 번호가 일치하지 않습니다.";
-        statusMsg.className = "text-xs font-semibold text-rose-400 min-h-[18px]";
-        setTimeout(() => {
-          clearPinInput();
-        }, 500);
-      }
-    }
-
-    function lockVaultNow() {
-      localStorage.removeItem('valiant_saved_pin');
-      currentUnlockedPin = null;
-      isPrivacyMode = true;
-      const icon = document.getElementById('privacyIcon');
-      if (icon) icon.innerText = "🙈";
-      currentPortfolio = { total_net_worth: 0, total_cash: 0, cash_ratio: 0, positions: [] };
-      historyRecords = [];
-      clearPinInput();
-      renderKPIs();
-
-      const overlay = document.getElementById('vaultLockOverlay');
-      overlay.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
-      const pinInput = document.getElementById('pinInput');
-      if (pinInput) pinInput.focus();
-    }
-
-    async function changeVaultPin() {
-      const newPinInput = document.getElementById('settingNewPin');
-      const newPin = newPinInput.value.trim();
-      const statusEl = document.getElementById('pinChangeStatus');
-      statusEl.classList.remove('hidden');
-
-      if (!/^[0-9]{6}$/.test(newPin)) {
-        statusEl.innerText = "❌ 6자리 숫자만 가능합니다.";
-        statusEl.className = "text-[11px] font-bold text-rose-400";
-        return;
-      }
-
-      if (!currentUnlockedPin || !currentPortfolio.positions.length) {
-        statusEl.innerText = "❌ 금고가 해제되어 있지 않습니다.";
-        statusEl.className = "text-[11px] font-bold text-rose-400";
-        return;
-      }
-
-      try {
-        statusEl.innerText = "⏳ 새 PIN으로 암호화 중...";
-        statusEl.className = "text-[11px] font-bold text-sky-400";
-
-        const vaultData = {
-          portfolio: currentPortfolio,
-          history: historyRecords
-        };
-
-        const newEncryptedVault = await encryptVaultData(vaultData, newPin);
-        currentUnlockedPin = newPin;
-        localStorage.setItem('valiant_saved_pin', newPin);
-        localStorage.setItem('valiant_vault_json', JSON.stringify(newEncryptedVault));
-
-        // GitHub 토큰이 설정되어 있다면 data/vault.json 파일 직접 커밋
-        const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
-        const token = localStorage.getItem('valiant_gh_token');
-        if (repo && token) {
-          await pushJsonToGitHub(repo, 'data/vault.json', newEncryptedVault, token, `chore: update encrypted vault PIN`);
-          statusEl.innerText = "✅ PIN 변경 & GitHub 원격 금고 암호화 완료!";
-        } else {
-          statusEl.innerText = "✅ 로컬 PIN 변경 완료! (토큰 설정 시 GitHub 동기화)";
-        }
-        statusEl.className = "text-[11px] font-bold text-emerald-400";
-        newPinInput.value = '';
-      } catch (err) {
-        statusEl.innerText = `❌ 오류: ${err.message}`;
-        statusEl.className = "text-[11px] font-bold text-rose-400";
+        badge.innerText = "🔐 6자리 PIN 모드";
+        badge.className = "font-bold text-amber-400 font-mono";
+        if (submitText) submitText.innerText = "보안 PIN 인증 후 일괄 체결";
       }
     }
 
     // -------------------------------------------------------------
-    // 2. Initial Setup & Render
+    // Order Basket Management & UI
     // -------------------------------------------------------------
-    window.addEventListener('DOMContentLoaded', async () => {
-      handleUrlOrderPayload();
-      loadSettings();
-      updateLockOverlayBiometricUI();
-
-      // 저장된 PIN이 있다면 자동 잠금 해제 시도
-      const savedPin = localStorage.getItem('valiant_saved_pin');
-      if (savedPin && savedPin.length === 6) {
-        currentPinBuffer = savedPin;
-        updatePinDots();
-        await unlockVault(savedPin);
-      } else {
-        const pinInput = document.getElementById('pinInput');
-        if (pinInput) pinInput.focus();
-      }
-    });
-
-    // -------------------------------------------------------------
-    // Privacy Mode (사생활 보호: 기본으로 금액 마스킹)
-    // -------------------------------------------------------------
-    let isPrivacyMode = true; // 기본값: 앱 켰을 때 기본으로 금액 숨김!
-
-    function togglePrivacyMode() {
-      isPrivacyMode = !isPrivacyMode;
-      updatePrivacyUI();
-      showToast(
-        isPrivacyMode ? "🙈 사생활 보호 모드 ON" : "👁️ 금액 표시 모드 ON",
-        isPrivacyMode ? "외부 시선으로부터 모든 자산 금액을 마스킹했습니다." : "실제 자산 평가액과 금액을 표시합니다.",
-        isPrivacyMode ? "🙈" : "👁️"
-      );
-    }
-    window.togglePrivacyMode = togglePrivacyMode;
-
-    function formatPrivacyAmount(amount) {
-      if (isPrivacyMode) return "₩ ••••••••";
-      return `₩${Number(amount || 0).toLocaleString()}`;
-    }
-    window.formatPrivacyAmount = formatPrivacyAmount;
-
-    function updatePrivacyUI() {
-      const icon = document.getElementById('privacyIcon');
-      if (icon) icon.innerText = isPrivacyMode ? "🙈" : "👁️";
-      renderKPIs();
-      renderHoldingsTable();
-      renderDonutChart();
-      renderHistoryTable();
-      renderHistoryTrendChart();
-    }
-    window.updatePrivacyUI = updatePrivacyUI;
-
-    function renderKPIs() {
-      document.getElementById('kpiNetWorth').innerText = formatPrivacyAmount(currentPortfolio.total_net_worth);
-      document.getElementById('kpiCash').innerText = formatPrivacyAmount(currentPortfolio.total_cash);
-      document.getElementById('kpiCashRatio').innerText = `비중 ${(currentPortfolio.cash_ratio * 100).toFixed(2)}% (원화/달러)`;
-      document.getElementById('kpiHoldingsCount').innerText = `${currentPortfolio.positions.length}개 종목`;
-    }
-
-    function renderHoldingsTable() {
-      const tbody = document.getElementById('holdingsTableBody');
-      const badge = document.getElementById('holdingsCountBadge');
-      if (badge && currentPortfolio.positions) {
-        badge.innerText = `${currentPortfolio.positions.length}개`;
-      }
-      tbody.innerHTML = '';
-      currentPortfolio.positions.forEach(p => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-800/50 transition-colors group";
-        tr.innerHTML = `
-          <td class="py-2.5 px-2.5">
-            <div class="font-bold text-slate-100 text-xs sm:text-sm truncate max-w-[125px] sm:max-w-[200px] md:max-w-none group-hover:text-sky-300 transition-colors">${p.stock_name}</div>
-            <div class="text-[10px] font-mono text-slate-400 font-semibold tracking-wider">${p.stock_code}</div>
-          </td>
-          <td class="py-2.5 px-2.5 text-right">
-            <div class="font-semibold text-slate-100 text-xs sm:text-sm">${formatPrivacyAmount(p.eval_amount)}</div>
-            <div class="text-[10px] font-bold text-sky-400">${p.weight_pct.toFixed(1)}%</div>
-          </td>
-          <td class="py-2.5 px-2 text-center">
-            <div class="flex items-center justify-center space-x-1">
-              <button onclick="openOrderModal('${p.stock_code}', '${p.stock_name.replace(/'/g, "\\'")}')" class="px-2 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 active:bg-sky-500/30 text-sky-400 hover:text-sky-300 border border-sky-500/30 text-[11px] font-bold transition-all flex items-center space-x-0.5" title="한투 주문 창 열기">
-                <span>⚡</span><span class="hidden xs:inline">주문</span>
-              </button>
-              <button onclick="addToBasket('${p.stock_code}', '${p.stock_name.replace(/'/g, "\\'")}')" title="바스켓에 1주 담기" class="hidden sm:inline-flex px-1.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[11px] font-bold transition-all items-center">
-                <span>+🛒</span>
-              </button>
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-      renderBasketSimulation();
-    }
-
-    function renderHistoryTable() {
-      const tbody = document.getElementById('historyTableBody');
-      tbody.innerHTML = '';
-      historyRecords.forEach(h => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-800/40 transition-colors";
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 font-mono font-medium text-slate-300">${h.timestamp}</td>
-          <td class="py-2.5 px-3 text-right font-bold text-slate-100">${formatPrivacyAmount(h.total_net_worth)}</td>
-          <td class="py-2.5 px-3 text-right text-emerald-400">${formatPrivacyAmount(h.total_cash)}</td>
-          <td class="py-2.5 px-3 text-right font-semibold text-slate-300">${(h.cash_ratio * 100).toFixed(1)}%</td>
-          <td class="py-2.5 px-3 text-slate-400 text-[11px]">${h.note}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    // -------------------------------------------------------------
-    // 3. ApexCharts Visualizations
-    // -------------------------------------------------------------
-    let currentDonutView = 'stock'; // 'stock' | 'sector' | 'country'
-
-    function setDonutView(view) {
-      currentDonutView = view;
-      ['stock', 'sector', 'country'].forEach(v => {
-        const btn = document.getElementById(`donutTab-${v}`);
-        if (btn) {
-          if (v === view) {
-            btn.className = "px-2 py-0.5 rounded-md font-bold transition-all bg-sky-500/20 text-sky-300 shadow-sm";
-          } else {
-            btn.className = "px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition-all";
-          }
-        }
-      });
-      renderDonutChart();
-    }
-    window.setDonutView = setDonutView;
-
-    function classifySector(ticker, name) {
-      const t = (ticker || '').toUpperCase();
-      const n = (name || '').toUpperCase();
-
-      // 1. AI & 반도체
-      if (['NVDA', 'TSM', 'AVGO', 'AMD', 'ASML', 'QCOM', 'ARM', 'INTC', 'MU', '005930', '000660', '042700'].includes(t) ||
-          n.includes('엔비디아') || n.includes('하이닉스') || n.includes('삼성전자') || n.includes('반도체') || n.includes('SEMICONDUCTOR')) {
-        return 'AI & 반도체';
-      }
-
-      // 2. 빅테크 & 클라우드 / 소프트웨어
-      if (['GOOGL', 'GOOG', 'MSFT', 'AAPL', 'AMZN', 'META', 'PLTR', 'CRM', '035420', '035720'].includes(t) ||
-          n.includes('구글') || n.includes('알파벳') || n.includes('마이크로소프트') || n.includes('애플') || n.includes('아마존') || n.includes('메타') || n.includes('팔란티어') || n.includes('네이버')) {
-        return '빅테크 & 플랫폼';
-      }
-
-      // 3. 모빌리티 & 전동화
-      if (['TSLA', 'RIVN', 'LCID', '005380', '000270', '373220', '006400', '051910', '005490'].includes(t) ||
-          n.includes('테슬라') || n.includes('현대차') || n.includes('기아') || n.includes('에너지솔루션') || n.includes('배터리')) {
-        return '모빌리티 & 전기차';
-      }
-
-      // 4. 배당 & 인컴 & 지수 ETF
-      if (['SCHD', 'JEPI', 'JEPQ', 'SPY', 'QQQ', 'VOO', 'VTI', 'IVV', '088980', '맥쿼리'].some(k => t.includes(k) || n.includes(k)) ||
-          n.includes('배당') || n.includes('TIGER') || n.includes('KODEX') || n.includes('ACE') || n.includes('인프라')) {
-        return '배당 & 지수 ETF';
-      }
-
-      // 5. 바이오 & 헬스케어
-      if (['LLY', 'NVO', 'JNJ', 'PFE', 'UNH', '207940', '068270'].includes(t) ||
-          n.includes('바이오') || n.includes('헬스케어') || n.includes('셀트리온')) {
-        return '바이오 & 헬스케어';
-      }
-
-      return '기타 분산 자산';
-    }
-
-    function renderDonutChart() {
-      if (!currentPortfolio || !currentPortfolio.positions || currentPortfolio.positions.length === 0) return;
-
-      let labels = [];
-      let series = [];
-      let chartColors = ['#0284c7', '#38bdf8', '#818cf8', '#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#64748b'];
-
-      if (currentDonutView === 'stock') {
-        // [1] 종목별 뷰 (상위 8개 + 기타)
-        const top8 = currentPortfolio.positions.slice(0, 8);
-        const others = currentPortfolio.positions.slice(8);
-        const otherSum = others.reduce((acc, cur) => acc + (cur.eval_amount || 0), 0);
-
-        labels = top8.map(p => p.stock_name);
-        series = top8.map(p => Math.round((p.eval_amount || 0) / 10000));
-
-        if (otherSum > 0) {
-          labels.push('기타 분산 종목들');
-          series.push(Math.round(otherSum / 10000));
-        }
-      } else if (currentDonutView === 'sector') {
-        // [2] 섹터/테마별 뷰
-        const sectorMap = {};
-        currentPortfolio.positions.forEach(p => {
-          const sec = classifySector(p.stock_code, p.stock_name);
-          sectorMap[sec] = (sectorMap[sec] || 0) + (p.eval_amount || 0);
-        });
-
-        // 비중 높은 순 정렬
-        const sortedSectors = Object.entries(sectorMap).sort((a, b) => b[1] - a[1]);
-        labels = sortedSectors.map(s => s[0]);
-        series = sortedSectors.map(s => Math.round(s[1] / 10000));
-        chartColors = ['#818cf8', '#38bdf8', '#a855f7', '#10b981', '#f59e0b', '#ec4899', '#64748b'];
-      } else if (currentDonutView === 'country') {
-        // [3] 국가/통화별 뷰 (미국 USD vs 한국 KRW)
-        let usdSum = 0;
-        let krwSum = 0;
-
-        currentPortfolio.positions.forEach(p => {
-          const code = (p.stock_code || '').trim();
-          if (/^\d{6}$/.test(code)) {
-            krwSum += (p.eval_amount || 0);
-          } else {
-            usdSum += (p.eval_amount || 0);
-          }
-        });
-
-        labels = ['🇺🇸 미국 주식 (USD)', '🇰🇷 국내 주식 (KRW)'];
-        series = [Math.round(usdSum / 10000), Math.round(krwSum / 10000)];
-        chartColors = ['#0284c7', '#10b981'];
-      }
-
-      const totalNetWorthNum = Number(currentPortfolio.total_net_worth) || ((currentPortfolio.positions || []).reduce((sum, p) => sum + Number(p.eval_amount || 0), 0) + Number(currentPortfolio.total_cash || 0));
-      const totalNetWorthEokStr = (totalNetWorthNum / 100000000).toFixed(2);
-
-      const options = {
-        chart: {
-          type: 'donut',
-          height: 310,
-          background: 'transparent',
-          foreColor: '#94a3b8',
-          animations: {
-            enabled: true,
-            easing: 'easeinout',
-            speed: 400
-          }
-        },
-        series: series,
-        labels: labels,
-        colors: chartColors,
-        stroke: { show: false },
-        dataLabels: { enabled: false },
-        legend: {
-          position: 'bottom',
-          horizontalAlign: 'center',
-          fontSize: '11px',
-          markers: { radius: 12 },
-          itemMargin: { horizontal: 6, vertical: 3 }
-        },
-        tooltip: {
-          theme: 'dark',
-          y: {
-            formatter: (val) => isPrivacyMode ? '•••• 만원' : `${val.toLocaleString()} 만원`
-          }
-        },
-        plotOptions: {
-          pie: {
-            donut: {
-              size: '68%',
-              labels: {
-                show: true,
-                total: {
-                  show: true,
-                  label: currentDonutView === 'country' ? '통합 자산' : '총 순자산',
-                  formatter: () => isPrivacyMode ? '•••• 억원' : `${totalNetWorthEokStr} 억원`,
-                  color: '#f8fafc'
-                }
-              }
-            }
-          }
-        }
-      };
-
-      if (donutChartInstance) donutChartInstance.destroy();
-      donutChartInstance = new ApexCharts(document.querySelector("#donutChart"), options);
-      donutChartInstance.render();
-    }
-
-    function renderHistoryTrendChart() {
-      const dates = historyRecords.map(h => h.timestamp);
-      const amountsInEok = historyRecords.map(h => Number((h.total_net_worth / 100000000).toFixed(2)));
-
-      const changeBadge = document.getElementById('historyChangeBadge');
-      if (changeBadge && historyRecords.length >= 2) {
-        const first = historyRecords[0].total_net_worth;
-        const last = historyRecords[historyRecords.length - 1].total_net_worth;
-        const diff = last - first;
-        const diffPct = ((diff / first) * 100).toFixed(1);
-        const sign = diff >= 0 ? '+' : '';
-        const colorClass = diff >= 0 ? 'text-emerald-400' : 'text-rose-400';
-
-        if (isPrivacyMode) {
-          changeBadge.innerText = `••••억 ➔ ••••억 (${sign}${diffPct}%)`;
-        } else {
-          changeBadge.innerText = `${(first/100000000).toFixed(2)}억 ➔ ${(last/100000000).toFixed(2)}억 (${sign}${diffPct}%)`;
-        }
-        changeBadge.className = `text-xs font-bold ${colorClass} ml-1`;
-      }
-
-      const options = {
-        chart: {
-          type: 'area',
-          height: 300,
-          background: 'transparent',
-          toolbar: { show: false },
-          foreColor: '#94a3b8'
-        },
-        series: [{
-          name: '총 순자산',
-          data: amountsInEok
-        }],
-        xaxis: {
-          categories: dates,
-          axisBorder: { show: false },
-          axisTicks: { show: false }
-        },
-        yaxis: {
-          labels: {
-            formatter: (v) => isPrivacyMode ? '••••' : `${v.toFixed(1)}억`
-          }
-        },
-        colors: ['#38bdf8'],
-        fill: {
-          type: 'gradient',
-          gradient: {
-            shadeIntensity: 1,
-            opacityFrom: 0.45,
-            opacityTo: 0.05,
-            stops: [0, 95, 100]
-          }
-        },
-        dataLabels: {
-          enabled: true,
-          formatter: (v) => isPrivacyMode ? '••••' : `${v}억`,
-          style: { fontSize: '11px', colors: ['#e2e8f0'] },
-          offsetY: -6
-        },
-        stroke: { curve: 'smooth', width: 3 },
-        grid: { borderColor: 'rgba(255, 255, 255, 0.06)' },
-        tooltip: {
-          theme: 'dark',
-          y: { formatter: (v) => `${v} 억원` }
-        }
-      };
-
-      if (historyChartInstance) historyChartInstance.destroy();
-      historyChartInstance = new ApexCharts(document.querySelector("#historyTrendChart"), options);
-      historyChartInstance.render();
-    }
-
-    // -------------------------------------------------------------
-    // 4. Tab Navigation Logic
-    // -------------------------------------------------------------
-    function switchTab(tabId) {
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('bg-sky-500/20', 'text-sky-400', 'border', 'border-sky-500/30');
-        btn.classList.add('text-slate-400');
-      });
-
-      const targetContent = document.getElementById(`tabContent-${tabId}`);
-      if (targetContent) targetContent.classList.remove('hidden');
-
-      const activeBtn = document.getElementById(`tabBtn-${tabId}`);
-      if (activeBtn) {
-        activeBtn.classList.add('bg-sky-500/20', 'text-sky-400', 'border', 'border-sky-500/30');
-        activeBtn.classList.remove('text-slate-400');
-      }
-
-      // Sync mobile bottom nav buttons
-      ['allocation', 'history'].forEach(id => {
-        const navBtn = document.getElementById(`navBtn-${id}`);
-        if (navBtn) {
-          if (id === tabId) {
-            navBtn.classList.remove('text-slate-400', 'font-medium');
-            navBtn.classList.add('text-sky-400', 'font-bold');
-          } else {
-            navBtn.classList.remove('text-sky-400', 'font-bold');
-            navBtn.classList.add('text-slate-400', 'font-medium');
-          }
-        }
-      });
-
-      if (tabId === 'allocation') {
-        renderDonutChart();
-      } else if (tabId === 'history') {
-        renderHistoryTable();
-        renderHistoryTrendChart();
-      }
-
-      // Trigger window resize event to force ApexCharts re-fit perfectly
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 50);
-    }
-
-    const DEFAULT_REPO = "wooyeonlee0/my-assets";
-
-    // -------------------------------------------------------------
-    // 5. Settings Management (LocalStorage)
-    // -------------------------------------------------------------
-    function openSettingsModal() {
-      document.getElementById('settingGithubRepo').value = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
-      const tgEl = document.getElementById('settingTelegramBot'); if (tgEl) tgEl.value = localStorage.getItem('valiant_tg_bot') || 'wooyeon_asset_bot';
-      document.getElementById('settingGithubToken').value = localStorage.getItem('valiant_gh_token') || '';
-      document.getElementById('settingGeminiKey').value = localStorage.getItem('valiant_gemini_key') || '';
-      const testStatus = document.getElementById('geminiTestStatus');
-      if (testStatus) testStatus.classList.add('hidden');
-      document.getElementById('settingsModal').classList.remove('hidden');
-      updateBiometricSettingsUI();
-    }
-
-    // -------------------------------------------------------------
-    // Model & Reasoning Effort Controls (3.8 Flash & 4 Argon)
-    // -------------------------------------------------------------
-    function onModelChanged() {
-      const select = document.getElementById('chatModelSelect');
-      if (select) {
-        localStorage.setItem('valiant_selected_model', select.value);
-      }
-    }
-
-    function onReasoningChanged() {
-      const select = document.getElementById('reasoningEffortSelect');
-      if (select) {
-        localStorage.setItem('valiant_reasoning_effort', select.value);
-      }
-    }
-
-    function loadModelAndReasoningSettings() {
-      const modelSelect = document.getElementById('chatModelSelect');
-      const reasoningSelect = document.getElementById('reasoningEffortSelect');
-      
-      const savedModel = localStorage.getItem('valiant_selected_model') || 'gemini-3.8-flash';
-      if (modelSelect && [...modelSelect.options].some(o => o.value === savedModel)) {
-        modelSelect.value = savedModel;
-      }
-
-      const savedReasoning = localStorage.getItem('valiant_reasoning_effort') || '2048';
-      if (reasoningSelect && [...reasoningSelect.options].some(o => o.value === savedReasoning)) {
-        reasoningSelect.value = savedReasoning;
-      }
-    }
-
-    async function callGeminiAPI(apiKey, payload) {
-      const modelSelect = document.getElementById('chatModelSelect');
-      const userSelected = (modelSelect ? modelSelect.value : null) || localStorage.getItem('valiant_selected_model') || 'gemini-3.8-flash';
-      
-      // ⚡ 3.8-Flash 이상 최상위 모델만 한정 순회 (하위 모델 다운그레이드 원천 배제)
-      const candidateModels = [userSelected];
-      ['gemini-3.8-flash', 'gemini-4-argon'].forEach(m => {
-        if (!candidateModels.includes(m)) candidateModels.push(m);
-      });
-
-      // Reasoning Effort (Thinking Budget) 반영
-      const reasoningVal = parseInt(localStorage.getItem('valiant_reasoning_effort') || (document.getElementById('reasoningEffortSelect')?.value || '2048'));
-
-      let lastErr = null;
-      for (const m of candidateModels) {
-        const reqPayload = JSON.parse(JSON.stringify(payload));
-        if (reasoningVal >= 0) {
-          if (!reqPayload.generationConfig) reqPayload.generationConfig = {};
-          reqPayload.generationConfig.thinkingConfig = {
-            thinkingBudget: reasoningVal
-          };
-        }
-
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15초 타임아웃 넉넉히 확보
-
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey.trim()}`;
-          let res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(reqPayload),
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-          let data = await res.json();
-
-          // 모델이 thinkingConfig를 지원하지 않을 경우 자동 제거 후 1회 재시도
-          if (!res.ok && data.error?.message && (data.error.message.includes('thinkingConfig') || data.error.message.includes('thinking_budget'))) {
-            delete reqPayload.generationConfig.thinkingConfig;
-            res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(reqPayload)
-            });
-            data = await res.json();
-          }
-
-          if (res.ok) {
-            if (modelSelect && modelSelect.value !== m && [...modelSelect.options].some(o => o.value === m)) {
-              modelSelect.value = m;
-              localStorage.setItem('valiant_selected_model', m);
-            }
-            return { model: m, data: data };
-          }
-
-          lastErr = data.error?.message || `HTTP ${res.status}`;
-          const isBusyOrNotFound = res.status === 404 || res.status === 503 || res.status === 429 ||
-            lastErr.includes('not found') || lastErr.includes('not supported') ||
-            lastErr.includes('high demand') || lastErr.includes('Spikes in demand');
-
-          if (isBusyOrNotFound) {
-            console.warn(`[Gemini API] 모델 ${m} 일시 사용 불가 (${lastErr}). 다음 모델로 자동 우회합니다...`);
-            continue;
-          }
-          throw new Error(lastErr);
-        } catch (e) {
-          const errMsg = e.message || '';
-          if (e.name === 'AbortError' || errMsg.includes('not found') || errMsg.includes('not supported') || errMsg.includes('high demand') || errMsg.includes('Spikes in demand')) {
-            continue;
-          }
-          throw e;
-        }
-      }
-      throw new Error(lastErr || "사용 가능한 Gemini 모델을 찾을 수 없습니다.");
-    }
-
-    function refreshAvailableModels() {
-    }
-
-    async function testGeminiKey() {
-      const inputKey = document.getElementById('settingGeminiKey').value.trim();
-      const statusEl = document.getElementById('geminiTestStatus');
-      statusEl.classList.remove('hidden');
-
-      if (!inputKey) {
-        statusEl.innerText = "❌ 키를 먼저 입력해 주세요.";
-        statusEl.className = "text-[11px] mt-1.5 text-rose-400 font-medium";
-        return;
-      }
-
-      statusEl.innerText = "⏳ Gemini API 연결 상태 및 키 유효성 확인 중...";
-      statusEl.className = "text-[11px] mt-1.5 text-sky-400 font-medium";
-
-      try {
-        // Google 공식 초고속 검증 엔드포인트 (0.3초 내 즉시 응답)
-        const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(inputKey)}`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error?.message || `HTTP ${res.status}`);
-        }
-
-        const modelCount = (data.models && data.models.length) || 0;
-        statusEl.innerText = `✅ 연결 성공! (Gemini API 정상 작동 · ${modelCount}개 모델 활성화됨)`;
-        statusEl.className = "text-[11px] mt-1.5 text-emerald-400 font-bold";
-        refreshAvailableModels();
-      } catch (err) {
-        statusEl.innerText = `❌ 연결 실패: ${err.message}`;
-        statusEl.className = "text-[11px] mt-1.5 text-rose-400 font-medium";
-      }
-    }
-
-    function closeSettingsModal() {
-      document.getElementById('settingsModal').classList.add('hidden');
-    }
-
-    function saveSettings() {
-      const repo = document.getElementById('settingGithubRepo').value.trim() || DEFAULT_REPO;
-      const token = document.getElementById('settingGithubToken').value.trim();
-      const gemini = document.getElementById('settingGeminiKey').value.trim();
-
-      localStorage.setItem('valiant_gh_repo', repo);
-      localStorage.setItem('valiant_gh_token', token);
-      localStorage.setItem('valiant_gemini_key', gemini);
-      const tgBot = (document.getElementById('settingTelegramBot')?.value || '').trim() || 'wooyeon_asset_bot';
-      localStorage.setItem('valiant_tg_bot', tgBot);
-
-      loadSettings();
-      closeSettingsModal();
-      alert('설정이 안전하게 브라우저 로컬 저장소에 저장되었습니다!');
-    }
-
-    function loadSettings() {
-      const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
-      const token = localStorage.getItem('valiant_gh_token');
-      const badge = document.getElementById('syncStatusBadge');
-
-      if (token) {
-        badge.innerText = "GitHub 동기화 활성";
-        badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
-      } else {
-        badge.innerText = "저장소 연결됨 (토큰 입력 시 커밋 활성화)";
-        badge.className = "text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20";
-      }
-      refreshAvailableModels();
-    }
-
-    // -------------------------------------------------------------
-    // 6. Gemini 1.5 Flash Vision: Screenshot Parsing
-    // -------------------------------------------------------------
-    async function handleImageSelected(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const geminiKey = localStorage.getItem('valiant_gemini_key');
-      if (!geminiKey) {
-        openSettingsModal();
-        alert('더리치 스크린샷 인식을 위해 Gemini API Key를 먼저 설정에 입력해 주세요! (무료: aistudio.google.com)');
-        return;
-      }
-
-      const statusBox = document.getElementById('aiProcessingStatus');
-      const statusText = document.getElementById('aiStatusText');
-      const previewSec = document.getElementById('parsedResultSection');
-
-      statusBox.classList.remove('hidden');
-      previewSec.classList.add('hidden');
-      statusText.innerText = "이미지를 인코딩하여 Gemini 1.5 Flash Vision으로 전송 중...";
-
-      try {
-        const base64Data = await fileToBase64(file);
-        statusText.innerText = "Gemini가 더리치 화면 속 20개 종목 비중과 평가액을 분석하고 있습니다...";
-
-        const prompt = `당신은 금융 포트폴리오 파서입니다. 제공된 더리치(The Rich) 또는 증권사 앱 스크린샷 이미지를 정밀 분석하여, 인식된 모든 보유 종목, 티커/코드, 비중(%), 평가금액(원화), 자산군(FOREIGN_STOCK, DOMESTIC_STOCK, DOMESTIC_ETF, CASH 중 하나)을 JSON 형식으로만 응답하세요.
-반드시 아래 JSON 스키마를 엄격히 지키고 코드 블록 없이 순수 JSON만 반환하세요:
-{
-  "total_net_worth": 710869593,
-  "total_cash": 20768091,
-  "positions": [
-    {
-      "stock_name": "엔비디아 (NVDA)",
-      "stock_code": "NVDA",
-      "weight_pct": 18.3,
-      "eval_amount": 130089135,
-      "asset_class": "FOREIGN_STOCK"
-    }
-  ]
-}`;
-
-        const payload = {
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType: file.type, data: base64Data } }
-            ]
-          }]
-        };
-
-        const result = await callGeminiAPI(geminiKey, payload);
-        const data = result.data;
-
-        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-          throw new Error("Gemini가 이미지를 분석하지 못했습니다. 다른 이미지로 시도해 주세요.");
-        }
-
-        const rawReply = data.candidates[0].content.parts[0].text;
-        
-        // Clean JSON formatting
-        const cleanJson = rawReply.replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(cleanJson);
-
-        tempParsedPositions = parsed;
-        statusBox.classList.add('hidden');
-        displayParsedResults(parsed);
-
-      } catch (err) {
-        statusBox.classList.add('hidden');
-        alert(`AI 분석 중 오류가 발생했습니다: ${err.message}`);
-      }
-    }
-
-    function fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = error => reject(error);
-      });
-    }
-
-    function displayParsedResults(parsed) {
-      const tbody = document.getElementById('parsedItemsTableBody');
-      tbody.innerHTML = '';
-      document.getElementById('parsedTotalAmount').innerText = `인식 총자산: ₩${Number(parsed.total_net_worth || 0).toLocaleString()} (${parsed.positions.length}개 종목)`;
-
-      parsed.positions.forEach(p => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="p-2 font-medium text-slate-200">${p.stock_name}</td>
-          <td class="p-2 text-slate-400 font-mono">${p.stock_code}</td>
-          <td class="p-2 text-right font-bold text-sky-400">${p.weight_pct}%</td>
-          <td class="p-2 text-right text-slate-300">₩${Number(p.eval_amount).toLocaleString()}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      document.getElementById('parsedResultSection').classList.remove('hidden');
-    }
-
-    function cancelParsedData() {
-      tempParsedPositions = null;
-      document.getElementById('parsedResultSection').classList.add('hidden');
-      document.getElementById('screenshotInput').value = '';
-    }
-
-    // -------------------------------------------------------------
-    // 7. GitHub API Direct Commit & Persistence
-    // -------------------------------------------------------------
-    async function commitParsedDataToGitHub() {
-      if (!tempParsedPositions) return;
-
-      const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
-      const token = localStorage.getItem('valiant_gh_token');
-
-      // Update in-memory state
-      currentPortfolio = {
-        total_net_worth: tempParsedPositions.total_net_worth || currentPortfolio.total_net_worth,
-        total_cash: tempParsedPositions.total_cash || currentPortfolio.total_cash,
-        cash_ratio: (tempParsedPositions.total_cash / tempParsedPositions.total_net_worth) || currentPortfolio.cash_ratio,
-        positions: tempParsedPositions.positions
-      };
-
-      const today = new Date().toISOString().split('T')[0];
-      historyRecords.push({
-        timestamp: today,
-        total_net_worth: currentPortfolio.total_net_worth,
-        total_cash: currentPortfolio.total_cash,
-        cash_ratio: currentPortfolio.cash_ratio,
-        note: "더리치 모바일 스크린샷 Gemini AI 자동 동기화"
-      });
-
-      // LocalStorage 캐시 저장 (새로고침 시 유지)
-      try {
-        localStorage.setItem('valiant_current_portfolio', JSON.stringify(currentPortfolio));
-        localStorage.setItem('valiant_history_records', JSON.stringify(historyRecords));
-      } catch (e) {}
-
-      renderKPIs();
-      renderHoldingsTable();
-      renderHistoryTable();
-      renderDonutChart();
-      renderHistoryTrendChart();
-
-      // 암호화된 vault 파일로 저장 및 GitHub 원격 커밋
-      if (currentUnlockedPin) {
-        try {
-          const vaultData = {
-            portfolio: currentPortfolio,
-            history: historyRecords
-          };
-          const encryptedVault = await encryptVaultData(vaultData, currentUnlockedPin);
-          localStorage.setItem('valiant_vault_json', JSON.stringify(encryptedVault));
-
-          if (repo && token) {
-            await pushJsonToGitHub(repo, 'data/vault.json', encryptedVault, token, `chore: update encrypted vault snapshot (${today})`);
-            alert("🎉 암호화된 자산 금고(vault.json)가 본인의 GitHub 저장소에 안전하게 Git 커밋되었습니다!");
-          } else {
-            alert("로컬 화면에 반영되었습니다! (GitHub 토큰을 설정하시면 원격 금고 파일로 자동 Git 커밋됩니다)");
-          }
-        } catch (e) {
-          console.warn("금고 암호화 커밋 오류:", e);
-        }
-      }
-
-      cancelParsedData();
-      switchTab('allocation');
-    }
-
-    async function pushJsonToGitHub(repo, path, dataObj, token, message) {
-      const getUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
-      let sha = null;
-
-      try {
-        const getRes = await fetch(getUrl, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (getRes.ok) {
-          const fileData = await getRes.json();
-          sha = fileData.sha;
-        }
-      } catch (e) {}
-
-      const jsonStr = JSON.stringify(dataObj, null, 2);
-      const base64Content = btoa(unescape(encodeURIComponent(jsonStr)));
-
-      const body = {
-        message: message,
-        content: base64Content
-      };
-      if (sha) body.sha = sha;
-
-      const putRes = await fetch(getUrl, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (!putRes.ok) throw new Error(`GitHub Save Failed: ${putRes.statusText}`);
-      return await putRes.json();
-    }
-
-    
-
-    // -------------------------------------------------------------
-    // AI Response Parser & Interactive KIS Order Action Card
-    // -------------------------------------------------------------
-    function parseAiResponseToHtml(rawReply) {
-      const orderRegex = /:::kis_order\s*(\{[\s\S]*?\})\s*:::/;
-      const match = rawReply.match(orderRegex);
-
-      let cleanText = rawReply;
-      let orderCardHtml = '';
-
-      if (match) {
-        cleanText = rawReply.replace(orderRegex, '').trim();
-        try {
-          const orderData = JSON.parse(match[1]);
-          const cardId = 'aiOrderCard_' + Math.random().toString(36).substr(2, 9);
-          const isBuy = (orderData.order_type || 'BUY').toUpperCase() === 'BUY';
-          const typeBadge = isBuy 
-            ? `<span class="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold text-[10px]">매수 (BUY)</span>`
-            : `<span class="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-400 border border-sky-500/30 font-bold text-[10px]">매도 (SELL)</span>`;
-
-          const buttonBg = isBuy
-            ? "bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white"
-            : "bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white";
-
-          orderCardHtml = `
-            <div id="${cardId}" class="mt-3.5 p-3.5 rounded-xl bg-slate-900 border border-indigo-500/40 shadow-lg shadow-indigo-500/10 space-y-2.5 text-xs text-left">
-              <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-                <div class="flex items-center space-x-1.5">
-                  <span class="text-base">🚀</span>
-                  <span class="font-bold text-slate-100">한투 AI 주문 제안 확인</span>
-                </div>
-                ${typeBadge}
-              </div>
-              <div class="flex items-center justify-between text-slate-300 py-1">
-                <div>
-                  <span class="font-bold text-slate-100 text-sm block">${orderData.name || orderData.ticker}</span>
-                  <span class="text-[10px] text-slate-400 font-mono">${orderData.ticker}</span>
-                </div>
-                <div class="text-right">
-                  <span class="text-base font-black text-amber-400">${orderData.qty}주</span>
-                  <span class="text-[10px] text-slate-400 block">${orderData.price == 0 ? '시장가 체결' : orderData.price + '원'}</span>
-                </div>
-              </div>
-              ${orderData.reason ? `<p class="text-[11px] text-slate-400 bg-slate-800/60 p-2 rounded-lg italic border border-slate-700/50">💡 AI 제안 근거: ${orderData.reason}</p>` : ''}
-              
-              <div id="${cardId}_action" class="flex space-x-2 pt-1">
-                <button type="button" onclick="window.triggerAiKisOrder('${cardId}', '${orderData.ticker}', '${(orderData.name || orderData.ticker).replace(/'/g, "\\'")}', ${orderData.qty}, '${orderData.order_type || 'BUY'}')" class="flex-1 py-2 px-3 ${buttonBg} rounded-lg font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer">
-                  <span>🚀</span>
-                  <span>한투에 이 주문 즉시 전송</span>
-                </button>
-                <button type="button" onclick="window.openOrderModal('${orderData.ticker}', '${(orderData.name || orderData.ticker).replace(/'/g, "\\'")}', ${orderData.qty}, '${orderData.order_type || 'BUY'}')" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold border border-slate-700 cursor-pointer">
-                  수량 수정
-                </button>
-              </div>
-            </div>
-          `;
-        } catch (e) {
-          console.warn("AI 주문 카드 파싱 실패:", e);
-        }
-      }
-
-      const markedText = (window.marked && typeof window.marked.parse === 'function')
-        ? window.marked.parse(cleanText)
-        : cleanText;
-
-      return `<div class="space-y-2 text-slate-200 text-xs leading-relaxed">${markedText}</div>` + orderCardHtml;
-    }
-
-    window.triggerAiKisOrder = async function(cardId, ticker, name, qty, orderType) {
-      const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
-      const token = localStorage.getItem('valiant_gh_token');
-
-      if (!token) {
-        openSettingsModal();
-        alert("한투 주문을 전송하려면 GitHub PAT 토큰이 필요합니다. 상단 ⚙️ 설정에서 토큰을 입력해 주세요!");
-        return;
-      }
-
-      const actionArea = document.getElementById(`${cardId}_action`);
-      if (actionArea) {
-        actionArea.innerHTML = `
-          <div class="w-full py-2 px-3 rounded-lg bg-indigo-950/60 border border-indigo-500/40 text-center text-xs text-sky-300 flex items-center justify-center space-x-2">
-            <div class="animate-spin w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full"></div>
-            <span>한투 거래소로 주문 전송 중... (약 3~5초)</span>
-          </div>
-        `;
-      }
-
-      try {
-        const dispatchUrl = `https://api.github.com/repos/${repo}/actions/workflows/kis_order.yml/dispatches`;
-        const res = await fetch(dispatchUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github+json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            ref: 'master',
-            inputs: {
-              ticker: ticker,
-              qty: String(qty),
-              order_type: orderType,
-              market: 'AUTO',
-              price: '0'
-            }
-          })
-        });
-
-        if (res.status === 204 || res.ok) {
-          if (actionArea) {
-            actionArea.innerHTML = `
-              <div class="w-full py-2.5 px-3 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-center text-xs text-emerald-300 font-bold space-y-1">
-                <div>🎉 [체결 접수 완료] ${name}(${ticker}) ${qty}주 ${orderType === 'BUY' ? '매수' : '매도'} 주문 성공!</div>
-                <div class="text-[10px] text-emerald-400/80 font-normal">한투 KIS 서버리스 러너에 정상 접수되었습니다. (체결 로그는 GitHub Actions에서 확인 가능)</div>
-              </div>
-            `;
-          }
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.message || `HTTP ${res.status}`);
-        }
-      } catch (err) {
-        if (actionArea) {
-          actionArea.innerHTML = `
-            <div class="w-full py-2 px-3 rounded-lg bg-rose-950/70 border border-rose-500/40 text-center text-xs text-rose-300 font-bold">
-              ❌ 주문 실패: ${err.message}
-            </div>
-          `;
-        }
-      }
-    };
-
-    // -------------------------------------------------------------
-    // 9. KIS Open API & GitHub Actions Serverless Order Execution
-    // -------------------------------------------------------------
-    let currentOrderType = 'BUY';
-    let currentPriceMode = 'MARKET';
-
-    function openOrderModal(stockCode, stockName, defaultQty, defaultOrderType) {
-      const modal = document.getElementById('orderModal');
-      const tickerInput = document.getElementById('orderTicker');
-      const nameLabel = document.getElementById('orderStockName');
-
-      if (stockCode) {
-        tickerInput.value = stockCode;
-        nameLabel.innerText = stockName || stockCode;
-      } else {
-        tickerInput.value = 'NVDA';
-        nameLabel.innerText = '엔비디아 (NVDA)';
-      }
-
-      document.getElementById('orderQty').value = defaultQty ? String(defaultQty) : '1';
-      document.getElementById('orderPrice').value = '';
-      setOrderType(defaultOrderType ? defaultOrderType.toUpperCase() : 'BUY');
-      togglePriceMode('MARKET');
-      document.getElementById('orderStatusBox').classList.add('hidden');
-      document.getElementById('btnSubmitOrder').disabled = false;
-      modal.classList.remove('hidden');
-    }
-
-    window.openOrderModal = openOrderModal;
-
-    function closeOrderModal() {
-      document.getElementById('orderModal').classList.add('hidden');
-    }
-
-    function setOrderType(type) {
-      currentOrderType = type;
-      const btnBuy = document.getElementById('tabBuy');
-      const btnSell = document.getElementById('tabSell');
-      const btnSubmit = document.getElementById('btnSubmitOrder');
-      const submitText = document.getElementById('btnSubmitText');
-
-      if (type === 'BUY') {
-        btnBuy.className = "flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-rose-600 text-white shadow-md shadow-rose-600/30";
-        btnSell.className = "flex-1 py-2 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
-        btnSubmit.className = "flex-1 py-3 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-rose-600/20 transition-all flex items-center justify-center space-x-1.5";
-        submitText.innerText = "한투 매수 즉시 전송";
-      } else {
-        btnSell.className = "flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-sky-600 text-white shadow-md shadow-sky-600/30";
-        btnBuy.className = "flex-1 py-2 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-slate-200";
-        btnSubmit.className = "flex-1 py-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-sky-600/20 transition-all flex items-center justify-center space-x-1.5";
-        submitText.innerText = "한투 매도 즉시 전송";
-      }
-    }
-
-    function adjustOrderQty(delta) {
-      const input = document.getElementById('orderQty');
-      let val = parseInt(input.value) || 1;
-      val = Math.max(1, val + delta);
-      input.value = val;
-    }
-
-    function setOrderQty(val) {
-      document.getElementById('orderQty').value = val;
-    }
-
-    function togglePriceMode(mode) {
-      currentPriceMode = mode;
-      const box = document.getElementById('limitPriceBox');
-      const radioMarket = document.querySelector('input[name="priceMode"][value="MARKET"]');
-      const radioLimit = document.querySelector('input[name="priceMode"][value="LIMIT"]');
-
-      if (mode === 'MARKET') {
-        box.classList.add('hidden');
-        if (radioMarket) radioMarket.checked = true;
-      } else {
-        box.classList.remove('hidden');
-        if (radioLimit) radioLimit.checked = true;
-      }
-    }
-
-    async function sendKisOrder() {
-      const ticker = document.getElementById('orderTicker').value.trim().toUpperCase();
-      const qty = document.getElementById('orderQty').value.trim();
-      const price = currentPriceMode === 'MARKET' ? '0' : (document.getElementById('orderPrice').value.trim() || '0');
-
-      if (!ticker) {
-        alert("종목 티커를 입력해 주세요.");
-        return;
-      }
-
-      if (!qty || parseInt(qty) <= 0) {
-        alert("수량은 1주 이상이어야 합니다.");
-        return;
-      }
-
-      if (parseInt(qty) > 100) {
-        alert("⚠️ [Risk Guard 차단] 1회 최대 주문 한도(100주)를 초과할 수 없습니다.");
-        return;
-      }
-
-      // 🔐 2차 보안: 주문 집행 직전 6자리 보안 PIN 확인 (스마트폰 도난/실수 방어)
-      const actionKo = currentOrderType === 'BUY' ? '매수' : '매도';
-      const promptPin = prompt(`🔐 [한투 주문 2차 보안 인증]\n\n• 대상: ${ticker} ${qty}주 ${actionKo} (${currentPriceMode === 'MARKET' ? '시장가' : price + '원/달러'})\n\n주문을 증권사로 전송하려면 6자리 보안 PIN을 입력해주세요:`);
-      if (promptPin === null) return; // 사용자 취소
-
-      const expectedPin = sessionStorage.getItem('valiant_unlocked_pin') || localStorage.getItem('valiant_cached_pin') || "123456";
-      if (promptPin.trim() !== expectedPin) {
-        alert("❌ [인증 실패] 보안 PIN이 일치하지 않습니다. 주문이 전송되지 않았습니다.");
-        return;
-      }
-
-      const repo = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
-      const token = localStorage.getItem('valiant_gh_token');
-
-      if (!token) {
-        openSettingsModal();
-        alert("주문 전송을 위해 GitHub PAT 토큰이 필요합니다. 상단 ⚙️ 설정에서 토큰을 입력해 주세요!");
-        return;
-      }
-
-      const statusBox = document.getElementById('orderStatusBox');
-      const statusTitle = document.getElementById('orderStatusTitle');
-      const statusDesc = document.getElementById('orderStatusDesc');
-      const submitBtn = document.getElementById('btnSubmitOrder');
-
-      statusBox.classList.remove('hidden');
-      submitBtn.disabled = true;
-      statusTitle.innerText = "⏳ GitHub Actions 클라우드 러너 가동 중...";
-      statusTitle.className = "font-bold text-sky-400";
-      statusDesc.innerText = `한투 거래소로 ${ticker} ${qty}주 ${currentOrderType} 주문 신호를 전송하고 있습니다 (약 3~5초 소요)...`;
-
-      try {
-        // GitHub Actions workflow_dispatch API 호출
-        const dispatchUrl = `https://api.github.com/repos/${repo}/actions/workflows/kis_order.yml/dispatches`;
-        const res = await fetch(dispatchUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github+json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            ref: 'master',
-            inputs: {
-              ticker: ticker,
-              qty: String(qty),
-              order_type: currentOrderType,
-              market: 'AUTO',
-              price: String(price)
-            }
-          })
-        });
-
-        if (res.status === 204 || res.ok) {
-          statusTitle.innerText = "🎉 [접수 완료] 한투 주문이 성공적으로 전송되었습니다!";
-          statusTitle.className = "font-bold text-emerald-400";
-          statusDesc.innerHTML = `
-            <strong>${ticker}</strong> ${qty}주 <strong>${currentOrderType === 'BUY' ? '매수' : '매도'}</strong> (${currentPriceMode === 'MARKET' ? '시장가' : price + '원/달러'}) 주문이 한투 서버리스 러너에 접수되었습니다.<br>
-            <span class="text-slate-400 mt-1 block">GitHub Actions 탭에서 실시간 체결 로그를 확인하실 수 있습니다.</span>
-          `;
-          submitBtn.disabled = false;
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.message || `HTTP ${res.status}`);
-        }
-      } catch (err) {
-        statusTitle.innerText = "❌ 주문 전송 실패";
-        statusTitle.className = "font-bold text-rose-400";
-        statusDesc.innerText = `오류: ${err.message}. GitHub 저장소 설정에서 KIS_APP_KEY, KIS_APP_SECRET 등의 Secrets가 등록되어 있는지 확인해 주세요.`;
-        submitBtn.disabled = false;
-      }
-    }
-
-    // -----------------------------------------------------------------
-    // 🛒 리밸런싱 바스켓 (Batch Order) 관리 시스템
-    // -----------------------------------------------------------------
-    let orderBasket = [];
-
     function addToBasket(ticker, name, qty = 1, side = 'BUY') {
       ticker = ticker.trim().toUpperCase();
       const existing = orderBasket.find(item => item.ticker === ticker && item.side === side);
@@ -2370,17 +721,142 @@
         }
         orderBasket.push({ ticker, name: name || ticker, qty: Math.min(100, qty), side });
       }
+      saveBasketToStorage();
       renderBasketUI();
-      // 피드백 토스트 알림
-      const toast = document.createElement('div');
-      toast.className = "fixed top-20 right-6 z-50 bg-indigo-600 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-bold transition-all transform animate-bounce";
-      toast.innerText = `🛒 [바스켓 담기] ${name || ticker} ${qty}주 (${side === 'BUY' ? '매수' : '매도'})`;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2000);
+      showToast(
+        "🛒 바스켓 담기",
+        `${name || ticker} ${qty}주 (${side === 'BUY' ? '매수' : '매도'}) 추가됨`,
+        "🛒"
+      );
     }
     window.addToBasket = addToBasket;
 
-    
+    function removeFromBasket(idx) {
+      if (orderBasket[idx]) {
+        orderBasket.splice(idx, 1);
+        saveBasketToStorage();
+        renderBasketUI();
+      }
+    }
+    window.removeFromBasket = removeFromBasket;
+
+    function toggleBasketSide(idx) {
+      if (orderBasket[idx]) {
+        orderBasket[idx].side = orderBasket[idx].side === 'BUY' ? 'SELL' : 'BUY';
+        saveBasketToStorage();
+        renderBasketUI();
+      }
+    }
+    window.toggleBasketSide = toggleBasketSide;
+
+    function adjustBasketQty(idx, delta) {
+      if (orderBasket[idx]) {
+        orderBasket[idx].qty = Math.max(1, Math.min(100, orderBasket[idx].qty + delta));
+        saveBasketToStorage();
+        renderBasketUI();
+      }
+    }
+    window.adjustBasketQty = adjustBasketQty;
+
+    function setBasketQty(idx, val) {
+      if (orderBasket[idx]) {
+        orderBasket[idx].qty = Math.max(1, Math.min(100, parseInt(val) || 1));
+        saveBasketToStorage();
+        renderBasketUI();
+      }
+    }
+    window.setBasketQty = setBasketQty;
+
+    function clearBasket() {
+      if (orderBasket.length === 0) return;
+      if (confirm("대기 중인 주문 바스켓을 모두 비우시겠습니까?")) {
+        orderBasket = [];
+        saveBasketToStorage();
+        renderBasketUI();
+      }
+    }
+    window.clearBasket = clearBasket;
+
+    function saveBasketToStorage() {
+      try {
+        localStorage.setItem('valiant_order_basket', JSON.stringify(orderBasket));
+      } catch (e) {}
+    }
+
+    function loadBasketFromStorage() {
+      try {
+        const saved = localStorage.getItem('valiant_order_basket');
+        if (saved) {
+          orderBasket = JSON.parse(saved);
+        }
+      } catch (e) {}
+    }
+
+    function renderBasketUI() {
+      // Sort Sell orders first for Sell-First pipeline display
+      const sellOrders = orderBasket.filter(o => o.side === 'SELL');
+      const buyOrders = orderBasket.filter(o => o.side === 'BUY');
+      const sortedOrders = [...sellOrders, ...buyOrders];
+
+      const count = sortedOrders.length;
+      const countBadge = document.getElementById('basketCountBadge');
+      const subtitle = document.getElementById('basketSubtitle');
+      const emptyMsg = document.getElementById('basketEmptyMessage');
+      const activeArea = document.getElementById('basketActiveArea');
+      const tbody = document.getElementById('basketTableBody');
+
+      if (countBadge) countBadge.innerText = `${count}건`;
+
+      if (count === 0) {
+        if (emptyMsg) emptyMsg.classList.remove('hidden');
+        if (activeArea) activeArea.classList.add('hidden');
+        if (subtitle) subtitle.innerText = "Gemini 제안 수신 대기 중";
+        return;
+      }
+
+      if (emptyMsg) emptyMsg.classList.add('hidden');
+      if (activeArea) activeArea.classList.remove('hidden');
+      if (subtitle) subtitle.innerText = `총 ${count}건 | Sell-First 매도 선실행`;
+
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      sortedOrders.forEach((item, idx) => {
+        // Find real index in orderBasket
+        const realIdx = orderBasket.findIndex(o => o.ticker === item.ticker && o.side === item.side);
+        const isSell = item.side === 'SELL';
+        const sideColor = isSell ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+        const sideLabel = isSell ? '매도 SELL' : '매수 BUY';
+
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-850/40 transition-colors";
+        tr.innerHTML = `
+          <td class="py-2.5 px-2">
+            <button onclick="toggleBasketSide(${realIdx})" class="px-2 py-0.5 rounded border text-[10px] font-bold ${sideColor} transition-all active:scale-95" title="클릭하여 매수/매도 전환">
+              ${sideLabel}
+            </button>
+          </td>
+          <td class="py-2.5 px-2">
+            <div class="font-bold text-slate-200 text-xs">${item.name || item.ticker}</div>
+            <div class="text-[10px] text-slate-400 font-mono">${item.ticker}</div>
+          </td>
+          <td class="py-2.5 px-2 text-center">
+            <div class="inline-flex items-center space-x-1">
+              <button onclick="adjustBasketQty(${realIdx}, -1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs">-</button>
+              <input type="number" value="${item.qty}" min="1" max="100" onchange="setBasketQty(${realIdx}, this.value)" class="w-10 bg-slate-950 border border-slate-700 text-center font-bold text-xs rounded py-0.5 text-slate-100 focus:outline-none">
+              <button onclick="adjustBasketQty(${realIdx}, 1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs">+</button>
+            </div>
+          </td>
+          <td class="py-2.5 px-1 text-center">
+            <button onclick="removeFromBasket(${realIdx})" class="text-slate-500 hover:text-rose-400 font-bold text-sm p-1">✕</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      renderBasketSimulation();
+    }
+
     function renderBasketSimulation() {
       const container = document.getElementById('basketSimulationBox');
       const listEl = document.getElementById('basketSimulationList');
@@ -2487,7 +963,7 @@
         listEl.appendChild(row);
       });
 
-      // 예수금 예상 변화
+      // Cash projection
       const beforeCash = Number(currentPortfolio.total_cash || 0);
       const beforeCashWeight = (beforeCash / totalNetWorth) * 100;
       const afterCashWeight = Math.max(0, (projectedCash / totalNetWorth) * 100);
@@ -2508,134 +984,128 @@
       `;
       listEl.appendChild(cashRow);
     }
-    window.renderBasketSimulation = renderBasketSimulation;
 
-    function renderBasketUI() {
-      const count = orderBasket.length;
-      const badge = document.getElementById('basketCountBadge');
-      const floatingWidget = document.getElementById('floatingBasketWidget');
-      const floatingCount = document.getElementById('floatingBasketCount');
+    // -------------------------------------------------------------
+    // URL Parameter & Clipboard Import Parser
+    // (?order=TSLA.3.S_NVDA.2.B)
+    // -------------------------------------------------------------
+    function applyOrderPayloadToBasket(orderParam) {
+      if (!orderParam || typeof orderParam !== 'string') return false;
 
-      if (badge) badge.innerText = count;
-      if (floatingCount) floatingCount.innerText = count;
-      const navBadge = document.getElementById('basketNavBadge');
-      if (navBadge) {
-        navBadge.innerText = count;
-        if (count > 0) navBadge.classList.remove('hidden');
-        else navBadge.classList.add('hidden');
+      let rawCode = orderParam.trim();
+      const matchUrl = rawCode.match(/(?:[?&](?:order|basket|start)=)([^&]+)/);
+      if (matchUrl) {
+        rawCode = decodeURIComponent(matchUrl[1]);
       }
 
-      if (floatingWidget) {
-        if (count > 0) floatingWidget.classList.remove('hidden');
-        else floatingWidget.classList.add('hidden');
+      // Format: TICKER.QTY.SIDE separated by _
+      const segments = rawCode.split('_').filter(s => s.trim().length > 0);
+      let loadedCount = 0;
+
+      segments.forEach(seg => {
+        const parts = seg.trim().split('.');
+        if (parts.length >= 3) {
+          const ticker = parts[0].trim().toUpperCase();
+          const qty = parseInt(parts[1], 10);
+          const rawSide = parts[2].trim().toUpperCase();
+          const side = (rawSide === 'S' || rawSide === 'SELL') ? 'SELL' : 'BUY';
+
+          if (ticker && !isNaN(qty) && qty > 0) {
+            const matchName = (currentPortfolio.positions || []).find(p => (p.stock_code || '').toUpperCase() === ticker);
+            const name = matchName ? matchName.stock_name : ticker;
+            addToBasket(ticker, name, qty, side);
+            loadedCount++;
+          }
+        }
+      });
+
+      return loadedCount > 0;
+    }
+
+    function handleUrlOrderPayload() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const orderParam = urlParams.get('order') || urlParams.get('basket') || urlParams.get('start');
+      if (!orderParam) return;
+
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+
+      const success = applyOrderPayloadToBasket(orderParam);
+      if (success) {
+        showToast("📥 Gemini 주문 수신", "Gemini가 제안한 리밸런싱 주문이 바스켓에 자동 적재되었습니다.", "💎");
+      }
+    }
+
+    async function importOrderFromClipboard() {
+      let text = "";
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          text = await navigator.clipboard.readText();
+        }
+      } catch (e) {
+        console.warn("Clipboard read permission denied", e);
       }
 
-      const tbody = document.getElementById('basketTableBody');
-      const emptyMsg = document.getElementById('basketEmptyMessage');
-      const countLabel = document.getElementById('basketSummaryCount');
-      if (countLabel) countLabel.innerText = `총 ${count}건`;
+      if (!text || !text.trim() || !text.includes('.')) {
+        text = prompt(
+          "📥 [Gemini 주문 불러오기]\n\nGemini 답변에서 복사한 주문 링크 또는 코드(예: TSLA.3.S_NVDA.2.B)를 붙여넣어 주세요:",
+          text || ""
+        );
+      }
 
-      if (!tbody) return;
-      tbody.innerHTML = '';
+      if (!text || !text.trim()) return;
 
-      if (count === 0) {
-        if (emptyMsg) emptyMsg.classList.remove('hidden');
-        renderBasketSimulation();
+      const success = applyOrderPayloadToBasket(text);
+      if (success) {
+        showToast("📥 불러오기 완료", "바스켓에 주문이 정상 추가되었습니다.", "🎉");
+      } else {
+        alert("❌ 유효한 주문 코드(형식: TICKER.수량.S/B)를 찾을 수 없습니다.\n입력값: " + text.substring(0, 100));
+      }
+    }
+    window.importOrderFromClipboard = importOrderFromClipboard;
+
+    // -------------------------------------------------------------
+    // Manual Stock Add Modal
+    // -------------------------------------------------------------
+    function openAddStockModal() {
+      document.getElementById('manualTickerInput').value = '';
+      document.getElementById('manualNameInput').value = '';
+      document.getElementById('manualQtyInput').value = '1';
+      document.getElementById('addStockModal').classList.remove('hidden');
+    }
+    window.openAddStockModal = openAddStockModal;
+
+    function closeAddStockModal() {
+      document.getElementById('addStockModal').classList.add('hidden');
+    }
+    window.closeAddStockModal = closeAddStockModal;
+
+    function submitManualStock() {
+      const ticker = document.getElementById('manualTickerInput').value.trim();
+      const name = document.getElementById('manualNameInput').value.trim() || ticker;
+      const side = document.getElementById('manualSideInput').value;
+      const qty = parseInt(document.getElementById('manualQtyInput').value, 10) || 1;
+
+      if (!ticker) {
+        alert("티커 또는 종목코드를 입력하세요.");
         return;
       }
-      if (emptyMsg) emptyMsg.classList.add('hidden');
 
-      orderBasket.forEach((item, idx) => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-800/40";
-        tr.innerHTML = `
-          <td class="py-2.5 px-2.5">
-            <span class="font-bold text-slate-100 block text-xs">${item.name}</span>
-            <span class="font-mono text-[10px] text-slate-400">${item.ticker}</span>
-          </td>
-          <td class="py-2.5 px-2 text-center">
-            <button onclick="toggleBasketSide(${idx})" class="px-2 py-0.5 rounded text-[10px] font-bold ${item.side === 'BUY' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-sky-500/20 text-sky-400 border border-sky-500/30'}">
-              ${item.side === 'BUY' ? '매수' : '매도'}
-            </button>
-          </td>
-          <td class="py-2.5 px-2 text-center">
-            <div class="flex items-center justify-center space-x-1">
-              <button onclick="adjustBasketQty(${idx}, -1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">-</button>
-              <input type="number" value="${item.qty}" min="1" max="100" onchange="setBasketQty(${idx}, this.value)" class="w-10 bg-slate-950 border border-slate-700 text-center font-bold text-xs rounded text-slate-100 focus:outline-none">
-              <button onclick="adjustBasketQty(${idx}, 1)" class="w-5 h-5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">+</button>
-            </div>
-          </td>
-          <td class="py-2.5 px-1 text-center">
-            <button onclick="removeFromBasket(${idx})" class="text-slate-500 hover:text-rose-400 font-bold text-sm">✕</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
+      addToBasket(ticker, name, qty, side);
+      closeAddStockModal();
     }
+    window.submitManualStock = submitManualStock;
 
-    function toggleBasketSide(idx) {
-      if (orderBasket[idx]) {
-        orderBasket[idx].side = orderBasket[idx].side === 'BUY' ? 'SELL' : 'BUY';
-        renderBasketUI();
-      }
+    // -------------------------------------------------------------
+    // 🚀 EXECUTION ENGINE: sendBatchOrder (Biometric -> PIN -> KIS)
+    // -------------------------------------------------------------
+    async function computePinHash(pin) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(pin.trim());
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
-    window.toggleBasketSide = toggleBasketSide;
-
-    function adjustBasketQty(idx, delta) {
-      if (orderBasket[idx]) {
-        orderBasket[idx].qty = Math.max(1, Math.min(100, orderBasket[idx].qty + delta));
-        renderBasketUI();
-      }
-    }
-    window.adjustBasketQty = adjustBasketQty;
-
-    function setBasketQty(idx, val) {
-      if (orderBasket[idx]) {
-        orderBasket[idx].qty = Math.max(1, Math.min(100, parseInt(val) || 1));
-        renderBasketUI();
-      }
-    }
-    window.setBasketQty = setBasketQty;
-
-    function removeFromBasket(idx) {
-      orderBasket.splice(idx, 1);
-      renderBasketUI();
-    }
-    window.removeFromBasket = removeFromBasket;
-
-    function clearBasket() {
-      if (orderBasket.length === 0) return;
-      if (confirm("바스켓에 담긴 모든 종목을 비우시겠습니까?")) {
-        orderBasket = [];
-        renderBasketUI();
-      }
-    }
-    window.clearBasket = clearBasket;
-
-    function openBasketModal() {
-      renderBasketUI();
-      document.getElementById('basketModal').classList.remove('hidden');
-    }
-    window.openBasketModal = openBasketModal;
-
-    function closeBasketModal() {
-      document.getElementById('basketModal').classList.add('hidden');
-    }
-    window.closeBasketModal = closeBasketModal;
-
-        async function computePinHash(pin) {
-      if (!pin) return "";
-      try {
-        const msgUint8 = new TextEncoder().encode(pin.trim());
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
-      } catch (e) {
-        console.warn("crypto.subtle not supported or failed", e);
-        return "";
-      }
-    }
-    window.computePinHash = computePinHash;
 
     async function sendBatchOrder() {
       if (orderBasket.length === 0) {
@@ -2643,7 +1113,7 @@
         return;
       }
 
-      // 🔐 2차 보안: 생체인증(지문) 우선 시도 ➔ PIN 자동 폴백
+      // 1. Biometric (Fingerprint/Passkey) Authentication First
       let orderPin = null;
       if (isBiometricRegistered()) {
         try {
@@ -2657,13 +1127,14 @@
         }
       }
 
+      // 2. Seamless Fallback to 6-digit PIN
       if (!orderPin) {
-        const promptPin = prompt(`🔐 [한투 배치 주문 2차 보안 인증]\n\n• 총 건수: ${orderBasket.length}건 (Sell-First 파이프라인 집행)\n\n주문을 증권사로 일괄 전송하려면 6자리 보안 PIN을 입력해주세요:`);
+        const promptPin = prompt(`🔐 [한투 배치 주문 2차 보안 인증]\n\n• 총 건수: ${orderBasket.length}건 (Sell-First 집행)\n\n주문을 증권사로 일괄 전송하려면 6자리 보안 PIN을 입력해주세요:`);
         if (promptPin === null) return;
         orderPin = promptPin.trim();
       }
 
-      const expectedPin = sessionStorage.getItem('valiant_unlocked_pin') || localStorage.getItem('valiant_cached_pin') || currentUnlockedPin || "123456";
+      const expectedPin = localStorage.getItem('valiant_saved_pin') || currentUnlockedPin || "123456";
       if (orderPin !== expectedPin) {
         alert("❌ [인증 실패] 보안 PIN이 일치하지 않습니다. 주문이 전송되지 않았습니다.");
         return;
@@ -2677,7 +1148,7 @@
         return;
       }
 
-      // Sell-First 순서 정렬
+      // 3. Sell-First Sorting & Hard Limit Guard
       const sellOrders = orderBasket.filter(o => o.side === 'SELL');
       const buyOrders = orderBasket.filter(o => o.side === 'BUY');
       const sortedOrders = [...sellOrders, ...buyOrders];
@@ -2697,8 +1168,9 @@
       };
 
       const submitBtn = document.getElementById('btnSubmitBatch');
+      const submitText = document.getElementById('btnSubmitBatchText');
       submitBtn.disabled = true;
-      submitBtn.innerHTML = `<span>⏳ 클라우드 러너로 배치 전송 중...</span>`;
+      if (submitText) submitText.innerText = "⏳ 클라우드 러너로 배치 전송 중...";
 
       try {
         const dispatchUrl = `https://api.github.com/repos/${repo}/actions/workflows/kis_order.yml/dispatches`;
@@ -2724,10 +1196,21 @@
         });
 
         if (res.status === 204 || res.ok) {
-          alert(`🎉 [배치 접수 완료] 총 ${sortedOrders.length}건의 리밸런싱 주문이 한투 러너에 접수되었습니다!\n\n체결 결과는 텔레그램으로 즉시 알림이 발송됩니다.`);
+          // Prepare transaction summary text
+          const summaryLines = sortedOrders.map(o => `${o.name || o.ticker} ${o.qty}주 [${o.side === 'SELL' ? '매도' : '매수'}]`);
+          lastExecutedSummary = summaryLines.join(', ');
+
+          // Record in local dispatch history
+          recordDispatchHistory(sortedOrders);
+
+          // Clear basket & UI
           orderBasket = [];
+          saveBasketToStorage();
           renderBasketUI();
-          closeBasketModal();
+
+          // Show Success Modal with Gemini Feedback Loop!
+          openSuccessModal(sortedOrders);
+
         } else {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.message || `HTTP ${res.status}`);
@@ -2736,117 +1219,263 @@
         alert(`❌ 배치 주문 전송 실패: ${err.message}`);
       } finally {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = `<span>🚀 6자리 PIN 인증 후 일괄 전송</span>`;
+        updateHeaderBioBadge();
       }
     }
     window.sendBatchOrder = sendBatchOrder;
 
     // -------------------------------------------------------------
-    // Toast Notification System
+    // 🎉 Success Modal & Gemini Feedback Loop
     // -------------------------------------------------------------
-    let toastTimeout = null;
-    function showToast(title, message, icon = '📋') {
-      const toast = document.getElementById('toastNotification');
-      if (!toast) {
-        alert(`${title}\n\n${message}`);
+    function openSuccessModal(executedOrders) {
+      const modal = document.getElementById('successModal');
+      const summaryBox = document.getElementById('successSummaryBox');
+      if (!modal || !summaryBox) return;
+
+      summaryBox.innerHTML = executedOrders.map(o => {
+        const isSell = o.side === 'SELL';
+        const color = isSell ? 'text-rose-400' : 'text-emerald-400';
+        return `<div class="flex justify-between items-center"><span class="${color} font-bold">${isSell ? '🔴 매도' : '🟢 매수'} ${o.name || o.ticker}</span><span>${o.qty}주</span></div>`;
+      }).join('');
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeSuccessModal() {
+      document.getElementById('successModal').classList.add('hidden');
+    }
+    window.closeSuccessModal = closeSuccessModal;
+
+    async function reportSuccessToGemini() {
+      const reportText = `✅ [한투 일괄 체결 완료]\n\n방금 제안해주신 리밸런싱 주문을 한투 클라우드로 전송 완료했어:\n• 체결 내역: ${lastExecutedSummary}\n\n이 변경사항을 반영해서 전체 포트폴리오 모니터링을 이어서 진행해줘!`;
+      
+      try {
+        await copyToClipboardRobust(reportText);
+        showToast("📋 체결 보고 복사 완료", "Gemini 대화방으로 이동합니다. 붙여넣기하세요!", "✨");
+      } catch (e) {}
+
+      setTimeout(() => {
+        window.open('https://gemini.google.com/app', '_blank');
+        closeSuccessModal();
+      }, 600);
+    }
+    window.reportSuccessToGemini = reportSuccessToGemini;
+
+    function openGeminiApp() {
+      window.open('https://gemini.google.com/app', '_blank');
+    }
+    window.openGeminiApp = openGeminiApp;
+
+    // -------------------------------------------------------------
+    // Inquiry & History Accordion
+    // -------------------------------------------------------------
+    function toggleInquiryAccordion() {
+      const content = document.getElementById('inquiryContent');
+      const icon = document.getElementById('inquiryAccordionIcon');
+      if (!content || !icon) return;
+
+      if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.innerText = '▲';
+        renderDispatchHistoryList();
+        renderCachedHoldingsList();
+      } else {
+        content.classList.add('hidden');
+        icon.innerText = '▼';
+      }
+    }
+    window.toggleInquiryAccordion = toggleInquiryAccordion;
+
+    function recordDispatchHistory(orders) {
+      try {
+        const history = JSON.parse(localStorage.getItem('valiant_dispatch_history') || '[]');
+        const record = {
+          timestamp: new Date().toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          orders: orders.map(o => ({ ticker: o.ticker, name: o.name || o.ticker, qty: o.qty, side: o.side }))
+        };
+        history.unshift(record);
+        localStorage.setItem('valiant_dispatch_history', JSON.stringify(history.slice(0, 15)));
+        renderDispatchHistoryList();
+      } catch (e) {}
+    }
+
+    function renderDispatchHistoryList() {
+      const listEl = document.getElementById('dispatchHistoryList');
+      if (!listEl) return;
+
+      const history = JSON.parse(localStorage.getItem('valiant_dispatch_history') || '[]');
+      if (history.length === 0) {
+        listEl.innerHTML = `<p class="text-[11px] text-slate-500 py-2 text-center">체결 기록이 없습니다.</p>`;
         return;
       }
-      document.getElementById('toastTitle').innerText = title;
-      document.getElementById('toastMessage').innerText = message;
-      document.getElementById('toastIcon').innerText = icon;
 
-      toast.classList.remove('translate-y-[-20px]', 'opacity-0', 'pointer-events-none');
-      toast.classList.add('translate-y-0', 'opacity-100');
+      listEl.innerHTML = history.map(item => {
+        const orderSummary = item.orders.map(o => `${o.side === 'SELL' ? '🔴' : '🟢'}${o.ticker} ${o.qty}주`).join(' ');
+        return `
+          <div class="p-2 bg-slate-900/60 border border-slate-800 rounded-lg flex items-center justify-between text-[11px]">
+            <div>
+              <div class="font-mono text-slate-300 font-semibold">${orderSummary}</div>
+              <div class="text-[9px] text-slate-500 font-mono">${item.timestamp}</div>
+            </div>
+            <button onclick="reAddOrdersToBasket('${encodeURIComponent(JSON.stringify(item.orders))}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold">
+              🛒 재담기
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
 
-      if (toastTimeout) clearTimeout(toastTimeout);
-      toastTimeout = setTimeout(() => {
-        toast.classList.remove('translate-y-0', 'opacity-100');
-        toast.classList.add('translate-y-[-20px]', 'opacity-0', 'pointer-events-none');
-      }, 4500);
+    function reAddOrdersToBasket(encodedOrders) {
+      try {
+        const orders = JSON.parse(decodeURIComponent(encodedOrders));
+        orders.forEach(o => addToBasket(o.ticker, o.name, o.qty, o.side));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showToast("🛒 재담기 완료", `${orders.length}개 종목이 바스켓에 담겼습니다.`, "🛒");
+      } catch (e) {}
+    }
+    window.reAddOrdersToBasket = reAddOrdersToBasket;
+
+    function clearDispatchHistory() {
+      if (confirm("최근 체결 접수 기록을 모두 지우시겠습니까?")) {
+        localStorage.removeItem('valiant_dispatch_history');
+        renderDispatchHistoryList();
+      }
+    }
+    window.clearDispatchHistory = clearDispatchHistory;
+
+    function renderCachedHoldingsList() {
+      const listEl = document.getElementById('cachedHoldingsList');
+      const countEl = document.getElementById('cachedHoldingsCount');
+      if (!listEl) return;
+
+      if (!currentPortfolio.positions || currentPortfolio.positions.length === 0) {
+        listEl.innerHTML = `<p class="text-[11px] text-slate-500 py-1 text-center">등록된 보유 종목이 없습니다.</p>`;
+        if (countEl) countEl.innerText = "0종목";
+        return;
+      }
+
+      if (countEl) countEl.innerText = `${currentPortfolio.positions.length}종목`;
+      listEl.innerHTML = currentPortfolio.positions.slice(0, 15).map(p => {
+        return `
+          <div class="flex items-center justify-between py-1 border-b border-slate-800/40 last:border-0">
+            <span class="text-slate-300 font-medium">${p.stock_name || p.stock_code} <span class="font-mono text-slate-500 text-[10px]">${p.stock_code}</span></span>
+            <div class="flex items-center space-x-1.5 font-mono">
+              <span class="text-sky-400 font-bold">${p.weight_pct ? p.weight_pct.toFixed(1) + '%' : ''}</span>
+              <button onclick="addToBasket('${p.stock_code}', '${(p.stock_name || p.stock_code).replace(/'/g, "\\'")}', 1, 'SELL')" class="px-1.5 py-0.2 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[9px] font-bold">
+                매도
+              </button>
+              <button onclick="addToBasket('${p.stock_code}', '${(p.stock_name || p.stock_code).replace(/'/g, "\\'")}', 1, 'BUY')" class="px-1.5 py-0.2 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold">
+                매수
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // -------------------------------------------------------------
+    // Settings & PIN Management
+    // -------------------------------------------------------------
+    function openSettingsModal() {
+      document.getElementById('settingGithubRepo').value = localStorage.getItem('valiant_gh_repo') || DEFAULT_REPO;
+      const tgEl = document.getElementById('settingTelegramBot');
+      if (tgEl) tgEl.value = localStorage.getItem('valiant_tg_bot') || 'wooyeon_asset_bot';
+      document.getElementById('settingGithubToken').value = localStorage.getItem('valiant_gh_token') || '';
+      document.getElementById('settingsModal').classList.remove('hidden');
+      updateBiometricSettingsUI();
+    }
+    window.openSettingsModal = openSettingsModal;
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+    window.closeSettingsModal = closeSettingsModal;
+
+    function saveSettings() {
+      const repo = document.getElementById('settingGithubRepo').value.trim() || DEFAULT_REPO;
+      const token = document.getElementById('settingGithubToken').value.trim();
+      const tgBot = document.getElementById('settingTelegramBot').value.trim() || 'wooyeon_asset_bot';
+
+      localStorage.setItem('valiant_gh_repo', repo);
+      localStorage.setItem('valiant_tg_bot', tgBot);
+      if (token) {
+        localStorage.setItem('valiant_gh_token', token);
+      }
+
+      showToast("💾 설정 저장 완료", "GitHub 연동 정보가 로컬 보안 스토리지에 저장되었습니다.", "⚙️");
+      closeSettingsModal();
+    }
+    window.saveSettings = saveSettings;
+
+    function changeVaultPin() {
+      const newPin = document.getElementById('settingNewPin').value.trim();
+      const status = document.getElementById('pinChangeStatus');
+
+      if (!/^\d{6}$/.test(newPin)) {
+        status.innerText = "❌ 6자리 숫자만 가능합니다.";
+        status.className = "text-[11px] font-semibold text-rose-400";
+        status.classList.remove('hidden');
+        return;
+      }
+
+      localStorage.setItem('valiant_saved_pin', newPin);
+      currentUnlockedPin = newPin;
+
+      status.innerText = "✅ PIN 변경 성공!";
+      status.className = "text-[11px] font-semibold text-emerald-400";
+      status.classList.remove('hidden');
+
+      // If biometric registered, re-bind with new PIN
+      if (isBiometricRegistered()) {
+        const credData = JSON.parse(localStorage.getItem(BIO_STORAGE_KEY));
+        encryptBioPayload(newPin, credData.credId).then(encrypted => {
+          localStorage.setItem(BIO_PAYLOAD_KEY, JSON.stringify(encrypted));
+        });
+      }
+
+      setTimeout(() => {
+        status.classList.add('hidden');
+        document.getElementById('settingNewPin').value = '';
+      }, 2000);
+    }
+    window.changeVaultPin = changeVaultPin;
+
+    // -------------------------------------------------------------
+    // Toast Notification System
+    // -------------------------------------------------------------
+    function showToast(title, message, icon = '📋') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+
+      const toast = document.createElement('div');
+      toast.className = "bg-slate-900 border border-slate-700/80 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-3 text-xs pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0";
+      toast.innerHTML = `
+        <span class="text-lg">${icon}</span>
+        <div>
+          <div class="font-bold text-slate-100">${title}</div>
+          <div class="text-[11px] text-slate-400">${message}</div>
+        </div>
+      `;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
     }
     window.showToast = showToast;
 
-    // -------------------------------------------------------------
-    // Flow 1: Google One AI Pro / Argon Deep Consultation & Telegram Deep Link
-    // -------------------------------------------------------------
-    function encodeCompactBasket() {
-      if (!orderBasket || orderBasket.length === 0) return "";
-      // Sell-First 정렬: 매도(SELL)를 항상 매수(BUY)보다 앞단에 배치
-      const sellOrders = orderBasket.filter(o => o.side === 'SELL');
-      const buyOrders = orderBasket.filter(o => o.side === 'BUY');
-      const sorted = [...sellOrders, ...buyOrders];
-      return sorted.map(o => `${o.ticker}.${o.qty}.${o.side === 'SELL' ? 'S' : 'B'}`).join('_');
-    }
-    window.encodeCompactBasket = encodeCompactBasket;
-
-    function sendBasketToTelegram() {
-      if (orderBasket.length === 0) {
-        alert("바스켓이 비어있습니다. 주문할 종목을 먼저 담아주세요.");
-        return;
-      }
-      const compactPayload = encodeCompactBasket();
-      const botUsername = localStorage.getItem('valiant_tg_bot') || "wooyeon_asset_bot";
-      const currentWebUrl = window.location.origin + window.location.pathname;
-      const tgUrl = `https://t.me/${botUsername}?start=${compactPayload}`;
-      
-      showToast(
-        "✈️ 텔레그램 트레이딩 봇 연동",
-        `바스켓 ${orderBasket.length}건을 텔레그램 딥링크로 전송합니다.\n가상 키패드에서 6자리 PIN을 터치해 안전하게 체결하세요.`,
-        "✈️"
-      );
-      setTimeout(() => {
-        window.open(tgUrl, '_blank');
-      }, 500);
-    }
-    window.sendBasketToTelegram = sendBasketToTelegram;
-
-    function buildGeminiPrompt(mode = 'portfolio') {
-      const netWorthNum = Number(currentPortfolio.total_net_worth) || ((currentPortfolio.positions || []).reduce((sum, p) => sum + Number(p.eval_amount || 0), 0) + Number(currentPortfolio.total_cash || 0));
-      const netWorthStr = (netWorthNum / 100000000).toFixed(2);
-      const cashRatioStr = ((currentPortfolio.cash_ratio || 0.05) * 100).toFixed(2);
-      const botUsername = localStorage.getItem('valiant_tg_bot') || "wooyeon_asset_bot";
-      const currentWebUrl = window.location.origin + window.location.pathname;
-
-      let positionsStr = "";
-      if (currentPortfolio.positions && currentPortfolio.positions.length > 0) {
-        positionsStr = currentPortfolio.positions
-          .slice(0, 15)
-          .map(p => `  • ${p.stock_name} (${p.stock_code}): 비중 ${p.weight_pct.toFixed(1)}% | 평가액 ${(p.eval_amount/100000000).toFixed(2)}억원`)
-          .join('\n');
-      } else {
-        positionsStr = "  • NVDA (엔비디아): 28.0% | GOOGL: 18.0% | TSLA: 14.0% | 삼성전자: 12.0% | 기타 28.0%";
-      }
-
-      let contextIntro = "";
-      if (mode === 'basket' && orderBasket.length > 0) {
-        const basketList = orderBasket.map(o => `  - ${o.name} (${o.ticker}): ${o.qty}주 [${o.side === 'SELL' ? '매도' : '매수'}]`).join('\n');
-        contextIntro = `[검토 요청 바스켓]:\n${basketList}\n\n위 바스켓이 내 전체 포트폴리오의 리스크와 밸런스 측면에서 적절한지 분석하고, 최적의 수량 조율안을 제안해줘.`;
-      } else {
-        contextIntro = `[상담 요청]:\n현재 시장 변동성과 거시 환경을 감안하여, 포트폴리오 리밸런싱 전략을 구체적 수량과 함께 제안해줘.`;
-      }
-
-      // @valiant-pb 스킬을 호출하고 실시간 자산 현황만 덧붙여 전송 (사족 규칙 0%)
-      const promptText = `@valiant-pb
-
-📊 [실시간 자산 포트폴리오 현황]
-• 총 자산 평가액: 약 ${netWorthStr}억 원 (실시간 평가 기준)
-• 현금 비중: 약 ${cashRatioStr}%
-• 주요 보유 종목 및 비중:
-${positionsStr}
-
-${contextIntro}`;
-
-      return promptText;
-    }
-    window.buildGeminiPrompt = buildGeminiPrompt;
-
-        async function copyToClipboardRobust(text) {
+    async function copyToClipboardRobust(text) {
       if (navigator.clipboard && window.isSecureContext) {
         try {
           await navigator.clipboard.writeText(text);
           return true;
         } catch (e) {
-          console.warn("navigator.clipboard failed, falling back to textarea", e);
+          console.warn("navigator.clipboard failed, fallback to textarea", e);
         }
       }
       const textArea = document.createElement("textarea");
@@ -2858,234 +1487,35 @@ ${contextIntro}`;
       textArea.focus();
       textArea.select();
       try {
-        const success = document.execCommand('copy');
-        document.body.removeChild(textArea);
-        return success;
-      } catch (err) {
-        document.body.removeChild(textArea);
-        return false;
-      }
-    }
-    window.copyToClipboardRobust = copyToClipboardRobust;
-
-                function buildSkillInstruction() {
-      const currentWebUrl = window.location.origin + window.location.pathname;
-      return `[스킬 이름: valiant-pb | 호출 태그: @valiant-pb]
-[역할 정의]
-당신은 실자산을 다수 종목으로 장기 분산 운용 중인 개인 투자자의 '1:1 수석 자산관리 PB (valiant-pb)' 스킬입니다.
-투자자의 핵심 원칙은 장기 복리 증식, 거시 변동성 방어, 빅테크/미국 성장주/배당주 중심의 균형 포트폴리오 유지입니다.
-
-[상담 및 운용 원칙]
-1. 심층 자산 진단: 사용자가 공유하는 실시간 포트폴리오 현황과 현금 비중을 바탕으로 거시경제, 기업 펀더멘털, 비중 불균형을 심층 분석하세요 (Argon/Pro 모델의 논리적 깊이 활용).
-2. 기존 보유주 비중 최적화: 과도하게 비중이 쏠린 종목의 분할 익절, 낙폭 과대 우량주의 비중 확대를 논리적으로 조언하세요.
-3. 신규 유망 종목 발굴 및 교체 매매 (Sector Rotation):
-   - 기존 보유 종목에만 머무르지 마세요. 거시 사이클 및 산업 트렌드(AI 인프라, 전력/에너지, 바이오, 배당 성장 등)에서 현재 포트폴리오의 빈틈을 메우고 성장을 견인할 **신규 유망 종목의 편입을 적극 제안**하세요.
-   - 신규 종목 매수 자금이 부족할 경우, 모멘텀이 약화되거나 비중이 과도한 기존 종목을 일부 매도하여 현금을 확보한 뒤 신규 종목을 매수하는 **교체 매매 바스켓(Sell-First)**을 구성하세요.
-   - 사용자가 "요즘 살 만한 신규 종목 있어?", "어떤 섹터가 유망해?"라고 질문할 때도 포트폴리오 분산 관점에서 최적의 신규 종목을 추천하세요.
-4. 주문 포맷 엄수: 사용자와 의견을 주고받으며 대화가 아무리 길어지더라도, **특정 종목의 매수/매도 또는 리밸런싱을 구체적 수량(주)과 함께 제안하거나 합의에 도달했을 때**는, 어떠한 예외도 없이 **답변의 맨 마지막 줄에 반드시 아래 규격의 웹앱 직통 주문 링크와 복사용 단축 코드 블록을 함께 출력**해야 합니다.
-
-[⚠️ 영구 엄수: 웹앱 원클릭 바스켓 링크 & 코드 규칙]
-형식:
-👉 [내 자산 웹앱에서 이 바스켓 바로 열기](${currentWebUrl}?order=COMPACT_ORDER_PAYLOAD)
-
-* 웹앱 원클릭 불러오기용 단축 코드:
-\`\`\`text
-COMPACT_ORDER_PAYLOAD
-\`\`\`
-
-* COMPACT_ORDER_PAYLOAD 작성 규격:
-1. 포맷: TICKER.수량.SIDE (여러 종목인 경우 밑줄 '_'로 연결)
-   - 매도: S, 매수: B
-   - 예시 1 (기존 종목 매도 + 신규 유망주 편입 교체 매매): 테슬라 3주 매도 후 신규 종목 팔란티어(PLTR) 5주 매수 제안 시:
-     👉 [내 자산 웹앱에서 이 바스켓 바로 열기](${currentWebUrl}?order=TSLA.3.S_PLTR.5.B)
-     \`\`\`text
-     TSLA.3.S_PLTR.5.B
-     \`\`\`
-   - 예시 2 (기존 종목 간 리밸런싱): 테슬라 3주 매도 후 엔비디아 2주 매수 제안 시:
-     👉 [내 자산 웹앱에서 이 바스켓 바로 열기](${currentWebUrl}?order=TSLA.3.S_NVDA.2.B)
-     \`\`\`text
-     TSLA.3.S_NVDA.2.B
-     \`\`\`
-   - 예시 3 (단건 매수): 구글 5주 매수 제안 시:
-     👉 [내 자산 웹앱에서 이 바스켓 바로 열기](${currentWebUrl}?order=GOOGL.5.B)
-     \`\`\`text
-     GOOGL.5.B
-     \`\`\`
-2. Sell-First 순서 원칙: 예수금 확보를 위해 반드시 매도(S) 종목을 매수(B)보다 앞단에 배치하세요.
-3. 안전 한도: 1회 주문 수량은 종목당 최대 100주 이하, 최대 10개 종목 이내여야 합니다.
-4. order 파라미터에는 공백, 한글, 특수문자 없이 대문자 영문, 숫자, 마침표, 밑줄만 사용하세요.`;
-    }
-    window.buildSkillInstruction = buildSkillInstruction;
-    window.buildGemInstruction = buildSkillInstruction;
-
-    async function copySkillInstruction() {
-      const text = buildSkillInstruction();
-      await copyToClipboardRobust(text);
-      showToast(
-        "⚡ Gemini Skill 전용 지침 복사 완료!",
-        "Gemini 좌측 사이드바 [맞춤설정 ➔ Skills ➔ + 만들기]에 붙여넣으세요.\n대화가 100턴 이어져도 @valiant-pb로 주문 링크를 절대 잊지 않습니다.",
-        "✨"
-      );
-      setTimeout(() => {
-        window.open('https://gemini.google.com/app', '_blank');
-      }, 700);
-    }
-        async function copyPinHashForSecrets() {
-      const pin = prompt("🔐 본인이 사용할 6자리 보안 PIN을 입력하세요:\n(입력한 PIN의 SHA-256 해시를 생성하여 복사합니다)");
-      if (!pin || !pin.trim()) return;
-      const hash = await computePinHash(pin.trim());
-      await copyToClipboardRobust(hash);
-      alert(`🎉 [PIN 해시값 복사 완료]\n\n해시값:\n${hash}\n\n👉 GitHub 저장소 [Settings ➔ Secrets ➔ Actions]로 이동하여 [TRADING_PIN_HASH] 이름으로 이 값을 등록하세요!\n\n이제 외부인이 PAT 토큰을 탈취해도 이 6자리 PIN을 모르면 증권사 주문이 0% 원천 차단됩니다.`);
-    }
-    window.copyPinHashForSecrets = copyPinHashForSecrets;
-
-    window.copySkillInstruction = copySkillInstruction;
-    window.copyGemInstruction = copySkillInstruction;
-
-
-    async function exportToGeminiPro(mode = 'portfolio') {
-      const promptText = buildGeminiPrompt(mode);
-      try {
-        await copyToClipboardRobust(promptText);
-        showToast(
-          "🧠 Gemini AI Pro 프롬프트 복사 완료!",
-          "실시간 자산 현황과 원클릭 체결 지침이 복사되었습니다.\n공식 Gemini 앱/웹에서 붙여넣기(Ctrl+V)하여 질문하세요.",
-          "✨"
-        );
+        document.execCommand('copy');
       } catch (e) {
-        showToast("🧠 Gemini Pro 열기", "공식 Gemini 앱으로 이동합니다.", "🚀");
+        console.error("execCommand copy failed", e);
       }
-      setTimeout(() => {
-        window.open('https://gemini.google.com/app', '_blank');
-      }, 700);
+      textArea.remove();
+      return true;
     }
-    window.exportToGeminiPro = exportToGeminiPro;
-
-    function exportBasketToGeminiPro() {
-      if (orderBasket.length === 0) {
-        alert("바스켓이 비어있습니다. 검토받을 종목을 먼저 담아주세요.");
-        return;
-      }
-      exportToGeminiPro('basket');
-    }
-    window.exportBasketToGeminiPro = exportBasketToGeminiPro;
 
     // -------------------------------------------------------------
-    // URL Parameter Order Handler (?order=TSLA.3.S_NVDA.2.B)
+    // Application Lifecycle & Boot
     // -------------------------------------------------------------
-        // -------------------------------------------------------------
-    // URL Parameter & Clipboard Order Handler (?order=TSLA.3.S_NVDA.2.B)
-    // -------------------------------------------------------------
-    function applyOrderPayloadToBasket(orderParam) {
-      if (!orderParam || typeof orderParam !== 'string') return false;
-
-      let cleaned = orderParam.trim();
-      const urlMatch = cleaned.match(/[?&]order=([^&\s#]+)/);
-      if (urlMatch) {
-        cleaned = urlMatch[1];
-      } else {
-        const tokenMatch = cleaned.match(/([A-Za-z0-9]{1,6}\.\d+\.[SsBb](?:_[A-Za-z0-9]{1,6}\.\d+\.[SsBb])*)/);
-        if (tokenMatch) cleaned = tokenMatch[1];
-      }
-
-      const parts = cleaned.split('_');
-      let addedCount = 0;
-
-      parts.forEach(part => {
-        const sub = part.split('.');
-        if (sub.length >= 3) {
-          const ticker = sub[0].trim().toUpperCase();
-          const qty = parseInt(sub[1]) || 1;
-          const sideCode = sub[2].trim().toUpperCase();
-          const side = sideCode.startsWith('S') ? 'SELL' : 'BUY';
-
-          let name = ticker;
-          if (currentPortfolio && currentPortfolio.positions) {
-            const match = currentPortfolio.positions.find(p => (p.stock_code || '').toUpperCase() === ticker);
-            if (match) name = match.stock_name;
-          }
-
-          const existingIdx = orderBasket.findIndex(item => item.ticker === ticker);
-          if (existingIdx >= 0) {
-            orderBasket[existingIdx].qty = Math.min(100, Math.max(1, qty));
-            orderBasket[existingIdx].side = side;
-            addedCount++;
-          } else {
-            if (orderBasket.length < 10) {
-              orderBasket.push({
-                ticker,
-                name,
-                qty: Math.min(100, Math.max(1, qty)),
-                side
-              });
-              addedCount++;
-            }
-          }
-        }
-      });
-
-      if (orderBasket.length > 0) {
-        renderBasketUI();
-        openBasketModal();
-        showToast(
-          "✨ Gemini 리밸런싱 주문 수신",
-          `Gemini가 제안한 ${orderBasket.length}건의 주문을 바스켓에 담았습니다. 확인 후 6자리 PIN으로 전송하세요!`,
-          "🛒"
-        );
-        return true;
-      }
-      return false;
-    }
-    window.applyOrderPayloadToBasket = applyOrderPayloadToBasket;
-
-    async function importOrderFromClipboard() {
-      let text = "";
+    window.addEventListener('DOMContentLoaded', async () => {
+      // 1. Load cached portfolio if available
       try {
-        if (navigator.clipboard && window.isSecureContext) {
-          text = await navigator.clipboard.readText();
+        const localVault = localStorage.getItem('valiant_vault_json');
+        if (localVault) {
+          const parsed = JSON.parse(localVault);
+          if (parsed && parsed.portfolio) currentPortfolio = parsed.portfolio;
         }
-      } catch (e) {
-        console.warn("Clipboard read permission denied or not supported", e);
-      }
+      } catch (e) {}
 
-      if (!text || !text.trim() || !text.includes('.')) {
-        text = prompt(
-          "📥 [Gemini 주문 불러오기]\n\nGemini 답변에서 복사한 주문 링크 또는 주문 코드(예: TSLA.3.S_NVDA.2.B)를 붙여넣어 주세요:",
-          text || ""
-        );
-      }
+      // 2. Load basket & URL parameters
+      loadBasketFromStorage();
+      handleUrlOrderPayload();
+      renderBasketUI();
 
-      if (!text || !text.trim()) return;
-
-      const success = applyOrderPayloadToBasket(text);
-      if (!success) {
-        alert("❌ 유효한 주문 코드(형식: TICKER.수량.S/B)를 찾을 수 없습니다.\n입력값: " + text.substring(0, 100));
-      }
-    }
-    window.importOrderFromClipboard = importOrderFromClipboard;
-
-    function handleUrlOrderPayload() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const orderParam = urlParams.get('order') || urlParams.get('basket') || urlParams.get('start');
-      if (!orderParam) return;
-
-      const cleanUrl = window.location.origin + window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-
-      applyOrderPayloadToBasket(orderParam);
-    }
-    window.handleUrlOrderPayload = handleUrlOrderPayload;
-
-
-
+      // 3. Update UI states
+      updateHeaderBioBadge();
+    });
   </script>
-  <!-- Toast Notification Container -->
-  <div id="toastNotification" class="fixed top-6 right-6 z-50 transform transition-all duration-300 ease-out translate-y-[-20px] opacity-0 pointer-events-none max-w-sm bg-slate-900/95 border border-purple-500/40 text-slate-100 rounded-2xl p-4 shadow-2xl backdrop-blur-md flex items-start space-x-3">
-    <div id="toastIcon" class="text-xl shrink-0">✨</div>
-    <div class="flex-1">
-      <div id="toastTitle" class="text-xs font-bold text-purple-300">알림</div>
-      <div id="toastMessage" class="text-[11px] text-slate-300 mt-0.5 leading-relaxed"></div>
-    </div>
-  </div>
 </body>
 </html>
